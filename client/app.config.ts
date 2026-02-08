@@ -1,6 +1,6 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
-const appName = process.env.COZE_PROJECT_NAME || process.env.EXPO_PUBLIC_COZE_PROJECT_NAME || '摇杆·歪比巴卜';
+const appName = '摇杆·歪比巴卜';
 const projectId = process.env.COZE_PROJECT_ID || process.env.EXPO_PUBLIC_COZE_PROJECT_ID;
 const slugAppName = projectId ? `app${projectId}` : 'myapp';
 

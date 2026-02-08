@@ -1,69 +1,95 @@
 import { StyleSheet } from 'react-native';
 
-/**
- * 蓝牙遥控小车主界面样式
- * 
- * C/Python对应理解：
- * - 相当于C语言的样式结构体
- * - 相当于Python的字典定义样式
- * 
- * 注意：这里定义的样式会自动应用到 index.tsx 中的组件
- * 如果需要添加新的样式，请在这里定义并在组件中使用
- */
-export const styles = StyleSheet.create({
+interface LayoutMetrics {
+  horizontalPadding: number;
+  topPadding: number;
+  bottomPadding: number;
+  topBarHeight: number;
+  topBarTop: number;
+  joystickSlotWidth: number;
+  centerSlotWidth: number;
+  buttonSlotWidth: number;
+  buttonAreaHeight: number;
+  labelFontSize: number;
+  statusFontSize: number;
+  backgroundColor: string;
+}
+
+export const createStyles = (layout: LayoutMetrics) => StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: layout.horizontalPadding,
+    paddingTop: layout.topPadding,
+    paddingBottom: layout.bottomPadding,
+    backgroundColor: layout.backgroundColor,
   },
-  header: {
+  topBar: {
+    position: 'absolute',
+    top: layout.topBarTop,
+    left: layout.horizontalPadding,
+    right: layout.horizontalPadding,
+    height: layout.topBarHeight,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
+    justifyContent: 'space-between',
   },
-  bluetoothControls: {
-    flexDirection: 'row',
-    gap: 10,
+  statusPill: {
+    flex: 1,
+    marginRight: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
-  button: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+  statusText: {
+    fontSize: layout.statusFontSize,
+    color: '#E5E7EB',
+  },
+  actionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 14,
   },
   connectButton: {
-    backgroundColor: '#00AA00',
+    backgroundColor: '#2563EB',
   },
   disconnectButton: {
-    backgroundColor: '#FF0000',
+    backgroundColor: '#DC2626',
   },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
+  actionText: {
+    color: '#FFFFFF',
+    fontSize: layout.statusFontSize,
+    fontWeight: '700',
   },
-  joystickArea: {
+  mainRow: {
+    flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
-    marginVertical: 30,
+    justifyContent: 'space-between',
   },
-  joystickWrapper: {
+  joystickSlot: {
+    width: layout.joystickSlotWidth,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerSpacer: {
+    width: layout.centerSlotWidth,
   },
   joystickLabel: {
     marginBottom: 10,
-  },
-  joystick: {
-    margin: 10,
+    fontSize: layout.labelFontSize,
+    color: '#E5E7EB',
+    fontWeight: '600',
   },
   buttonArea: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    height: layout.buttonAreaHeight,
     alignItems: 'center',
-    gap: 20,
-    marginTop: 20,
+    justifyContent: 'center',
+  },
+  buttonRow: {
+    width: layout.buttonSlotWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 });

@@ -1,5 +1,6 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import React, { useRef, useEffect, useMemo } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 
 /**
@@ -32,6 +33,18 @@ export const DebugLog: React.FC<DebugLogProps> = ({
   packets,
   onClearLog,
 }) => {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const topOffset = insets.top + 6;
+  const panelWidth = Math.min(width - 24, Math.round(width * 0.92));
+  const panelHeight = Math.min(Math.round(height * 0.35), 320);
+  const collapsedWidth = Math.min(width - 24, Math.round(width * 0.9));
+
+  const styles = useMemo(
+    () => createStyles(panelWidth, panelHeight, collapsedWidth, topOffset),
+    [panelWidth, panelHeight, collapsedWidth, topOffset]
+  );
+
   const scrollViewRef = useRef<ScrollView>(null);  // ScrollView引用（用于自动滚动）
 
   /**
@@ -55,7 +68,7 @@ export const DebugLog: React.FC<DebugLogProps> = ({
     return (
       <ThemedView style={styles.collapsedContainer}>
         <TouchableOpacity onPress={toggleCollapse} style={styles.toggleButton}>
-          <Text style={styles.toggleText}>🔧 调试日志 (点击展开)</Text>
+          <Text style={styles.toggleText}>调试日志 (点击展开)</Text>
           <Text style={styles.statusText}>{bluetoothStatus}</Text>
         </TouchableOpacity>
       </ThemedView>
@@ -68,7 +81,7 @@ export const DebugLog: React.FC<DebugLogProps> = ({
       {/* 标题栏 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={toggleCollapse} style={styles.toggleButton}>
-          <Text style={styles.toggleText}>🔧 调试日志 (点击折叠)</Text>
+          <Text style={styles.toggleText}>调试日志 (点击折叠)</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={onClearLog} style={styles.clearButton}>
           <Text style={styles.clearText}>清空</Text>
@@ -78,7 +91,7 @@ export const DebugLog: React.FC<DebugLogProps> = ({
       {/* 蓝牙状态 */}
       <View style={styles.statusBar}>
         <Text style={styles.statusLabel}>蓝牙状态：</Text>
-        <Text style={[styles.statusValue, { color: bluetoothStatus.includes('已连接') ? '#00FF00' : '#FF0000' }]}>
+        <Text style={[styles.statusValue, { color: bluetoothStatus.includes('已连接') ? '#4ADE80' : '#F87171' }]}>
           {bluetoothStatus}
         </Text>
       </View>
@@ -112,28 +125,35 @@ export const DebugLog: React.FC<DebugLogProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (
+  panelWidth: number,
+  panelHeight: number,
+  collapsedWidth: number,
+  topOffset: number
+) => StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 320,
-    height: 400,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#444',
+    top: topOffset,
+    alignSelf: 'center',
+    width: panelWidth,
+    height: panelHeight,
+    backgroundColor: 'rgba(18, 18, 20, 0.94)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     zIndex: 1000,
   },
   collapsedContainer: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 200,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 8,
+    top: topOffset,
+    alignSelf: 'center',
+    width: collapsedWidth,
+    backgroundColor: 'rgba(18, 18, 20, 0.75)',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#666',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     zIndex: 1000,
   },
   header: {
@@ -142,73 +162,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#666',
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   toggleButton: {
     flex: 1,
   },
   toggleText: {
-    color: '#00FF00',
-    fontSize: 14,
-    fontWeight: 'bold',
+    color: '#E5E7EB',
+    fontSize: 13,
+    fontWeight: '600',
   },
   clearButton: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: '#FF0000',
-    borderRadius: 5,
+    backgroundColor: '#991B1B',
+    borderRadius: 6,
   },
   clearText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '700',
   },
   statusBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
   statusLabel: {
-    color: '#CCCCCC',
-    fontSize: 12,
-    marginRight: 5,
+    color: '#9CA3AF',
+    fontSize: 11,
+    marginRight: 6,
   },
   statusValue: {
-    color: '#00FF00',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '600',
   },
   statusText: {
-    color: '#CCCCCC',
-    fontSize: 11,
-    marginTop: 5,
+    color: '#9CA3AF',
+    fontSize: 10,
+    marginTop: 4,
   },
   logArea: {
     flex: 1,
     padding: 10,
-    maxHeight: 280,
   },
   logText: {
-    color: '#00FF00',
-    fontSize: 11,
-    fontFamily: 'Courier New',  // 等宽字体，方便查看十六进制数据
+    color: '#D1FAE5',
+    fontSize: 10,
+    fontFamily: 'Courier New',
     marginBottom: 2,
   },
   emptyText: {
-    color: '#888888',
-    fontSize: 12,
+    color: '#6B7280',
+    fontSize: 11,
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 16,
   },
   footer: {
-    padding: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderTopWidth: 1,
-    borderTopColor: '#666',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   footerText: {
-    color: '#888888',
+    color: '#6B7280',
     fontSize: 10,
     textAlign: 'center',
   },

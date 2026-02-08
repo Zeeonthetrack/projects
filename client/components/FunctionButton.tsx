@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { TouchableOpacity, StyleSheet, Text } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
 
 /**
  * 功能按键类型定义
@@ -31,6 +30,9 @@ interface FunctionButtonProps {
   onPress: (value: number) => void;    // 按下回调函数（传递状态值）
   onRelease: (value: number) => void;  // 松开回调函数（传递状态值）
   label: string;                       // 按键标签文字
+  width?: number;                      // 按键宽度
+  height?: number;                     // 按键高度
+  fontSize?: number;                   // 文字大小
 }
 
 export const FunctionButton: React.FC<FunctionButtonProps> = ({
@@ -38,8 +40,18 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
   onPress,
   onRelease,
   label,
+  width,
+  height,
+  fontSize,
 }) => {
   const [isPressed, setIsPressed] = useState(false);  // 按键按下状态
+
+  const colors = {
+    red: { base: '#FF0000', pressed: '#CC0000' },
+    blue: { base: '#0066FF', pressed: '#0047B3' },
+    green: { base: '#00C853', pressed: '#00963F' },
+    yellow: { base: '#FFD400', pressed: '#C7A400' },
+  }[type];
 
   /**
    * 获取按键颜色
@@ -48,25 +60,7 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
    * - 相当于C语言的 switch-case 语句
    * - 相当于Python的字典查找或if-elif语句
    */
-  const getButtonColor = (): string => {
-    if (isPressed) {
-      // 按下状态：颜色变深
-      switch (type) {
-        case 'red': return '#8B0000';    // 深红（相当于C语言: 0x8B0000）
-        case 'blue': return '#00008B';   // 深蓝
-        case 'green': return '#006400';  // 深绿
-        case 'yellow': return '#B8860B'; // 深黄
-      }
-    } else {
-      // 松开状态：正常颜色
-      switch (type) {
-        case 'red': return '#FF0000';    // 红色（相当于C语言: 0xFF0000）
-        case 'blue': return '#0000FF';   // 蓝色
-        case 'green': return '#00FF00';  // 绿色
-        case 'yellow': return '#FFFF00'; // 黄色
-      }
-    }
-  };
+  const getButtonColor = (): string => (isPressed ? colors.pressed : colors.base);
 
   /**
    * 获取状态值（十六进制）
@@ -118,46 +112,37 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
         styles.button,
         {
           backgroundColor: getButtonColor(),
+          width,
+          height,
           transform: [{ scale: isPressed ? 0.95 : 1 }],  // 按下时缩小效果
         },
       ]}
       onPressIn={handlePressIn}    // 按下时触发
       onPressOut={handlePressOut}  // 松开时触发
-      activeOpacity={1}  // 禁用默认的透明度变化（我们自己控制视觉反馈）
+      activeOpacity={0.85}
     >
-      <ThemedView style={styles.buttonContent}>
-        <Text style={styles.label}>{label}</Text>
-      </ThemedView>
+      <Text style={[styles.label, fontSize ? { fontSize } : null]}>{label}</Text>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,  // 圆形按键
+    width: 120,
+    height: 70,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    margin: 10,
-    borderWidth: 3,
-    borderColor: '#333',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  buttonContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
   },
   label: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 1,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });
