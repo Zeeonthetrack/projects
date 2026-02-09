@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "bec2224a-bfce-4754-a203-9bbcd9f78d3d"
+      }
+    },
+    "android": {
+      "package": "com.zeeonthetrack.expoexpressmonorepo"
+    }
+  }
+}
