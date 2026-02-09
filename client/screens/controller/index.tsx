@@ -8,6 +8,7 @@ import { ControlButton } from '@/components/ControlButton';
 import { TouchButton } from '@/components/TouchButton';
 import { BluetoothService } from '@/services/BluetoothService';
 import { BluetoothDevice } from '@/utils/bluetoothTypes';
+import { useTheme } from '@/hooks/useTheme';
 import { createStyles } from './styles';
 
 /**
@@ -19,7 +20,7 @@ import { createStyles } from './styles';
  * 4. 调试日志显示
  */
 export default function ControllerScreen() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
   // 摇杆数值状态（0-255，127为中立位）
@@ -124,7 +125,7 @@ export default function ControllerScreen() {
   };
   
   return (
-    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle="dark">
+    <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
       <ThemedView level="root" style={styles.container}>
         {/* 顶部标题和连接状态 */}
         <View style={styles.header}>

@@ -17,7 +17,7 @@ export default function RootLayout() {
     <AuthProvider>
       <ColorSchemeProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <StatusBar style="dark"></StatusBar>
+          <StatusBar style="auto"></StatusBar>
           <Stack screenOptions={{
             // 设置所有页面的切换动画为从右侧滑入，适用于iOS 和 Android
             animation: 'slide_from_right',

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets, Edge } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/hooks/useTheme';
 // 引入 KeyboardAware 系列组件
 import {
   KeyboardAwareScrollView,
@@ -54,7 +55,7 @@ import {
  */
 interface ScreenProps {
   children: React.ReactNode;
-  /** 背景色，默认 #fff */
+  /** 背景色，默认跟随主题 */
   backgroundColor?: string;
   /**
    * 状态栏样式
@@ -142,14 +143,18 @@ const KeyboardAwareScrollable = ({
 
 export const Screen = ({
   children,
-  backgroundColor = '#fff',
-  statusBarStyle = 'dark',
+  backgroundColor,
+  statusBarStyle,
   statusBarColor = 'transparent',
   safeAreaEdges = ['top', 'left', 'right', 'bottom'],
   style,
 }: ScreenProps) => {
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
   const [keyboardShown, setKeyboardShown] = React.useState(false);
+
+  const resolvedBackgroundColor = backgroundColor ?? theme.backgroundRoot;
+  const resolvedStatusBarStyle = statusBarStyle ?? (isDark ? 'light' : 'dark');
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -199,7 +204,7 @@ export const Screen = ({
 
   const wrapperStyle: ViewStyle = {
     flex: 1,
-    backgroundColor,
+    backgroundColor: resolvedBackgroundColor,
     paddingTop: hasTop ? insets.top : 0,
     paddingLeft: hasLeft ? insets.left : 0,
     paddingRight: hasRight ? insets.right : 0,
@@ -275,7 +280,7 @@ export const Screen = ({
     <View style={wrapperStyle}>
       {/* 状态栏配置：强制透明背景 + 沉浸式，以支持背景图延伸 */}
       <StatusBar
-        style={statusBarStyle}
+        style={resolvedStatusBarStyle}
         backgroundColor={statusBarColor}
         translucent
       />

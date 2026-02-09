@@ -7,7 +7,7 @@ enum COLOR_SCHEME_CHOICE {
   LIGHT = 'light', // 固定为 light 主题，不随系统变化
 };
 
-const userPreferColorScheme: COLOR_SCHEME_CHOICE = COLOR_SCHEME_CHOICE.FOLLOW_SYSTEM;
+const userPreferColorScheme: COLOR_SCHEME_CHOICE = COLOR_SCHEME_CHOICE.DARK;
 
 function getTheme(colorScheme?: 'dark' | 'light' | null) {
   const isDark = colorScheme === 'dark';

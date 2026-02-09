@@ -16,20 +16,20 @@ export const Colors = {
     borderLight: "#F3F4F6",
   },
   dark: {
-    textPrimary: "#FAFAF9",
-    textSecondary: "#A8A29E",
-    textMuted: "#6F767E",
-    primary: "#818CF8", // Indigo-400 - 暗色模式品牌主色
-    accent: "#A78BFA", // Violet-400
+    textPrimary: "#F5F5F4",
+    textSecondary: "#C5C1BB",
+    textMuted: "#8B9096",
+    primary: "#8B93FF", // Indigo-400 - 暗色模式品牌主色
+    accent: "#B49BFF", // Violet-400
     success: "#34D399",
     error: "#F87171",
-    backgroundRoot: "#09090B", // 更深的背景色
-    backgroundDefault: "#1C1C1E",
-    backgroundTertiary: "#1F1F22", // 暗色模式去线留白背景
-    buttonPrimaryText: "#09090B",
-    tabIconSelected: "#818CF8",
-    border: "#3F3F46",
-    borderLight: "#27272A",
+    backgroundRoot: "#0B0C0F", // 更深的背景色
+    backgroundDefault: "#15171B",
+    backgroundTertiary: "#1F2329", // 暗色模式去线留白背景
+    buttonPrimaryText: "#0B0C0F",
+    tabIconSelected: "#8B93FF",
+    border: "#2F333A",
+    borderLight: "#24282E",
   },
 };
 
