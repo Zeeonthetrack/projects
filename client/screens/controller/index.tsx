@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Joystick } from '@/components/Joystick';
 import { ControlButton } from '@/components/ControlButton';
+import { TouchButton } from '@/components/TouchButton';
 import { BluetoothService } from '@/services/BluetoothService';
 import { BluetoothDevice } from '@/utils/bluetoothTypes';
 import { createStyles } from './styles';
@@ -194,13 +195,11 @@ export default function ControllerScreen() {
           {!isConnected ? (
             <>
               <ThemedText style={styles.bluetoothTitle}>蓝牙连接</ThemedText>
-              <ThemedText
-                style={styles.scanButton}
-                onPress={handleScan}
-                color={theme.primary}
-              >
-                {isScanning ? '扫描中...' : '扫描设备'}
-              </ThemedText>
+              <TouchButton onPress={handleScan} style={styles.scanButton}>
+                <ThemedText color={theme.primary}>
+                  {isScanning ? '扫描中...' : '扫描设备'}
+                </ThemedText>
+              </TouchButton>
               
               {/* 设备列表 */}
               {devices.length > 0 && (
@@ -212,37 +211,29 @@ export default function ControllerScreen() {
                       style={styles.deviceItem}
                     >
                       <ThemedText variant="caption">{device.name}</ThemedText>
-                      <ThemedText
-                        variant="smallMedium"
-                        onPress={() => handleConnect(device)}
-                        color={theme.primary}
-                      >
-                        连接
-                      </ThemedText>
+                      <TouchButton onPress={() => handleConnect(device)}>
+                        <ThemedText variant="smallMedium" color={theme.primary}>
+                          连接
+                        </ThemedText>
+                      </TouchButton>
                     </ThemedView>
                   ))}
                 </View>
               )}
             </>
           ) : (
-            <ThemedText
-              style={styles.disconnectButton}
-              onPress={handleDisconnect}
-              color={theme.error}
-            >
-              断开连接
-            </ThemedText>
+            <TouchButton onPress={handleDisconnect} style={styles.disconnectButton}>
+              <ThemedText color={theme.error}>断开连接</ThemedText>
+            </TouchButton>
           )}
         </View>
         
         {/* 调试日志切换按钮 */}
-        <ThemedText
-          style={styles.logToggleButton}
-          onPress={() => setShowLogs(!showLogs)}
-          color={theme.primary}
-        >
-          {showLogs ? '▼ 隐藏日志' : '▶ 显示日志'}
-        </ThemedText>
+        <TouchButton onPress={() => setShowLogs(!showLogs)} style={styles.logToggleButton}>
+          <ThemedText color={theme.primary}>
+            {showLogs ? '▼ 隐藏日志' : '▶ 显示日志'}
+          </ThemedText>
+        </TouchButton>
         
         {/* 调试日志区域（可折叠） */}
         {showLogs && (

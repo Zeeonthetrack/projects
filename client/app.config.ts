@@ -25,9 +25,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION",
         "BLUETOOTH",
-        "BLUETOOTH_ADMIN",
         "BLUETOOTH_CONNECT",
         "BLUETOOTH_SCAN"
       ],
@@ -68,12 +66,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           "photosPermission": `允许蓝牙小车控制App访问您的相册，以便您上传或保存图片。`,
           "cameraPermission": `允许蓝牙小车控制App使用您的相机，以便您直接拍摄照片上传。`,
           "microphonePermission": `允许蓝牙小车控制App访问您的麦克风，以便您拍摄带有声音的视频。`
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": `蓝牙小车控制App需要访问您的位置以提供周边服务及导航功能。`
         }
       ],
       [

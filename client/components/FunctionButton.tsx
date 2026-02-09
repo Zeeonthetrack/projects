@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { TouchableOpacity, StyleSheet, Text } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { PanResponder, StyleSheet, Text, ViewStyle } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 
 /**
@@ -31,6 +31,9 @@ interface FunctionButtonProps {
   onPress: (value: number) => void;    // 按下回调函数（传递状态值）
   onRelease: (value: number) => void;  // 松开回调函数（传递状态值）
   label: string;                       // 按键标签文字
+  size?: number;                       // 按键尺寸（默认80）
+  style?: ViewStyle;                   // 自定义样式
+  touchId?: number;                    // 触摸ID
 }
 
 export const FunctionButton: React.FC<FunctionButtonProps> = ({
@@ -38,8 +41,14 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
   onPress,
   onRelease,
   label,
+  size = 80,
+  style,
+  touchId,
 }) => {
   const [isPressed, setIsPressed] = useState(false);  // 按键按下状态
+  const activeTouchIdRef = useRef<number | null>(null);
+
+  void touchId;
 
   /**
    * 获取按键颜色
@@ -112,34 +121,63 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
     onRelease(0x00);  // 通知父组件按键复位为0x00
   };
 
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => activeTouchIdRef.current === null,
+        onStartShouldSetPanResponderCapture: () => activeTouchIdRef.current === null,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => false,
+        onPanResponderGrant: (evt) => {
+          activeTouchIdRef.current = evt.nativeEvent.identifier ?? null;
+          handlePressIn();
+        },
+        onPanResponderRelease: (evt) => {
+          if (evt.nativeEvent.identifier !== activeTouchIdRef.current) {
+            return;
+          }
+          activeTouchIdRef.current = null;
+          handlePressOut();
+        },
+        onPanResponderTerminate: () => {
+          activeTouchIdRef.current = null;
+          handlePressOut();
+        },
+      }),
+    []
+  );
+
+  const dynamicStyle: ViewStyle = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+  };
+
   return (
-    <TouchableOpacity
+    <ThemedView
       style={[
         styles.button,
+        dynamicStyle,
+        style,
         {
           backgroundColor: getButtonColor(),
-          transform: [{ scale: isPressed ? 0.95 : 1 }],  // 按下时缩小效果
+          transform: [{ scale: isPressed ? 0.95 : 1 }],
         },
       ]}
-      onPressIn={handlePressIn}    // 按下时触发
-      onPressOut={handlePressOut}  // 松开时触发
-      activeOpacity={1}  // 禁用默认的透明度变化（我们自己控制视觉反馈）
+      {...panResponder.panHandlers}
     >
       <ThemedView style={styles.buttonContent}>
         <Text style={styles.label}>{label}</Text>
       </ThemedView>
-    </TouchableOpacity>
+    </ThemedView>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,  // 圆形按键
     justifyContent: 'center',
     alignItems: 'center',
-    margin: 10,
     borderWidth: 3,
     borderColor: '#333',
     shadowColor: '#000',

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { View, Text, PanResponder, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { createStyles } from './styles';
 
@@ -20,6 +20,9 @@ interface ControlButtonProps {
   isPressed: boolean;      // 是否被按下
   onPressIn: () => void;   // 按下回调
   onPressOut: () => void;  // 松开回调
+  size?: number;           // 按键尺寸
+  style?: ViewStyle;       // 自定义样式
+  touchId?: number;        // 触摸ID
 }
 
 // 颜色映射表（按键颜色配置）
@@ -36,37 +39,70 @@ export function ControlButton({
   isPressed,
   onPressIn,
   onPressOut,
+  size = 120,
+  style,
+  touchId,
 }: ControlButtonProps) {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const activeTouchIdRef = useRef<number | null>(null);
+
+  void touchId;
   
   const colors = BUTTON_COLORS[colorType];
   
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => activeTouchIdRef.current === null,
+        onStartShouldSetPanResponderCapture: () => activeTouchIdRef.current === null,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => false,
+        onPanResponderGrant: (evt) => {
+          activeTouchIdRef.current = evt.nativeEvent.identifier ?? null;
+          onPressIn();
+        },
+        onPanResponderRelease: (evt) => {
+          if (evt.nativeEvent.identifier !== activeTouchIdRef.current) {
+            return;
+          }
+          activeTouchIdRef.current = null;
+          onPressOut();
+        },
+        onPanResponderTerminate: () => {
+          activeTouchIdRef.current = null;
+          onPressOut();
+        },
+      }),
+    [onPressIn, onPressOut]
+  );
+
+  const dynamicStyle: ViewStyle = {
+    width: size,
+    height: Math.round(size * 0.66),
+  };
+
   return (
-    <TouchableOpacity
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      activeOpacity={0.7}  // 按下时的透明度反馈
+    <View
+      style={[
+        styles.button,
+        dynamicStyle,
+        style,
+        {
+          backgroundColor: colors.bg,
+          shadowOpacity: isPressed ? 0.4 : 0.2,
+          shadowOffset: isPressed ? { width: 0, height: 2 } : { width: 0, height: 4 },
+          transform: [{ scale: isPressed ? 0.95 : 1 }],
+        },
+      ]}
+      {...panResponder.panHandlers}
     >
-      <View
-        style={[
-          styles.button,
-          {
-            backgroundColor: colors.bg,
-            // 按下时的阴影效果（视觉反馈）
-            shadowOpacity: isPressed ? 0.4 : 0.2,
-            shadowOffset: isPressed ? { width: 0, height: 2 } : { width: 0, height: 4 },
-            transform: [{ scale: isPressed ? 0.95 : 1 }],  // 按下时缩小
-          },
-        ]}
-      >
-        <Text style={[styles.buttonText, { color: colors.text }]}>
-          {label}
-        </Text>
-      </View>
-    </TouchableOpacity>
+      <Text style={[styles.buttonText, { color: colors.text }]}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
 // 必须导入useMemo
-import { useMemo } from 'react';

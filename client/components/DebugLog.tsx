@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
+import { TouchButton } from '@/components/TouchButton';
 
 /**
  * 调试日志组件
@@ -54,10 +55,10 @@ export const DebugLog: React.FC<DebugLogProps> = ({
   if (isCollapsed) {
     return (
       <ThemedView style={styles.collapsedContainer}>
-        <TouchableOpacity onPress={toggleCollapse} style={styles.toggleButton}>
+        <TouchButton onPress={toggleCollapse} style={styles.toggleButton}>
           <Text style={styles.toggleText}>🔧 调试日志 (点击展开)</Text>
           <Text style={styles.statusText}>{bluetoothStatus}</Text>
-        </TouchableOpacity>
+        </TouchButton>
       </ThemedView>
     );
   }
@@ -67,12 +68,12 @@ export const DebugLog: React.FC<DebugLogProps> = ({
     <ThemedView style={styles.container}>
       {/* 标题栏 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={toggleCollapse} style={styles.toggleButton}>
+        <TouchButton onPress={toggleCollapse} style={styles.toggleButton}>
           <Text style={styles.toggleText}>🔧 调试日志 (点击折叠)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onClearLog} style={styles.clearButton}>
+        </TouchButton>
+        <TouchButton onPress={onClearLog} style={styles.clearButton}>
           <Text style={styles.clearText}>清空</Text>
-        </TouchableOpacity>
+        </TouchButton>
       </View>
 
       {/* 蓝牙状态 */}
