@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, ViewStyle } from 'react-native';
+import { PanResponder, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 
 /**
@@ -152,6 +152,15 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
     width: size,
     height: size,
     borderRadius: size / 2,
+    borderWidth: size * 0.035,
+    shadowOffset: { width: 0, height: size * 0.025 },
+    shadowRadius: size * 0.05,
+    elevation: Math.max(1, Math.round(size * 0.06)),
+  };
+
+  const labelStyle: TextStyle = {
+    shadowOffset: { width: size * 0.01, height: size * 0.01 },
+    textShadowRadius: size * 0.01,
   };
 
   return (
@@ -168,7 +177,17 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
       {...panResponder.panHandlers}
     >
       <ThemedView style={styles.buttonContent}>
-        <Text style={styles.label}>{label}</Text>
+        <Text
+          style={[
+            styles.label,
+            {
+              fontSize: size * 0.18,
+            },
+            labelStyle,
+          ]}
+        >
+          {label}
+        </Text>
       </ThemedView>
     </ThemedView>
   );
@@ -178,13 +197,9 @@ const styles = StyleSheet.create({
   button: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
     borderColor: '#333',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   buttonContent: {
     justifyContent: 'center',
@@ -192,10 +207,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: '#000',
-    fontSize: 14,
     fontWeight: 'bold',
     textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 1,
   },
 });

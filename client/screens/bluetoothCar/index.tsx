@@ -339,15 +339,28 @@ export default function BluetoothCarScreen() {
   const screenHeight = Math.min(width, height);
 
   const layout = useMemo(() => {
-    const joystickSize = screenWidth * 0.2;
-    const buttonSize = screenWidth * 0.1;
+    const joystickSize = screenWidth * 0.22;
+    const buttonSize = screenWidth * 0.09;
     const buttonGap = screenWidth * 0.02;
-    const bottomOffset = screenWidth * 0.04;
+    const bottomOffset = screenHeight * 0.06;
     const rowWidth = buttonSize * 4 + buttonGap * 3;
     const rowLeft = Math.max(0, (screenWidth - rowWidth) / 2);
     const joystickLeft = screenWidth * 0.1 - joystickSize / 2;
     const joystickRight = screenWidth * 0.1 - joystickSize / 2;
     const rowBottom = bottomOffset + Math.max(0, (joystickSize - buttonSize) / 2);
+    const headerTop = screenHeight * 0.03;
+    const headerSide = screenWidth * 0.02;
+    const headerPaddingX = screenWidth * 0.02;
+    const headerPaddingY = screenHeight * 0.015;
+    const headerRadius = screenWidth * 0.015;
+    const headerGap = screenWidth * 0.015;
+    const buttonPaddingX = screenWidth * 0.014;
+    const buttonPaddingY = screenHeight * 0.01;
+    const buttonRadius = screenWidth * 0.012;
+    const buttonTextSize = screenWidth * 0.015;
+    const joystickLabelGap = screenHeight * 0.01;
+    const rootPaddingX = screenWidth * 0.02;
+    const rootPaddingY = screenHeight * 0.02;
 
     return {
       joystickSize,
@@ -359,32 +372,85 @@ export default function BluetoothCarScreen() {
       joystickLeft,
       joystickRight,
       rowBottom,
+      headerTop,
+      headerSide,
+      headerPaddingX,
+      headerPaddingY,
+      headerRadius,
+      headerGap,
+      buttonPaddingX,
+      buttonPaddingY,
+      buttonRadius,
+      buttonTextSize,
+      joystickLabelGap,
+      rootPaddingX,
+      rootPaddingY,
     };
-  }, [screenWidth]);
+  }, [screenHeight, screenWidth]);
 
   return (
     <Screen backgroundColor="#1a1a2e" statusBarStyle="light" safeAreaEdges={['left', 'right']}>
-      <ThemedView style={[styles.container, { width: screenWidth, height: screenHeight }]}>
-        <View style={styles.header}>
+      <ThemedView
+        style={[
+          styles.container,
+          {
+            width: screenWidth,
+            height: screenHeight,
+            paddingHorizontal: layout.rootPaddingX,
+            paddingVertical: layout.rootPaddingY,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              top: layout.headerTop,
+              left: layout.headerSide,
+              right: layout.headerSide,
+              paddingHorizontal: layout.headerPaddingX,
+              paddingVertical: layout.headerPaddingY,
+              borderRadius: layout.headerRadius,
+            },
+          ]}
+        >
           <ThemedText variant="h3" color="#ffffff">🚗 蓝牙遥控小车</ThemedText>
-          <View style={styles.bluetoothControls}>
+          <View style={[styles.bluetoothControls, { gap: layout.headerGap }]}>
             {!isConnected ? (
               <TouchButton
                 onPress={scanDevices}
-                style={[styles.button, styles.connectButton]}
+                style={[
+                  styles.button,
+                  styles.connectButton,
+                  {
+                    paddingHorizontal: layout.buttonPaddingX,
+                    paddingVertical: layout.buttonPaddingY,
+                    borderRadius: layout.buttonRadius,
+                  },
+                ]}
                 pressedStyle={styles.buttonPressed}
               >
-                <Text style={styles.buttonText}>
+                <Text style={[styles.buttonText, { fontSize: layout.buttonTextSize }]}>
                   {isScanning ? '扫描中...' : '🔍 扫描设备'}
                 </Text>
               </TouchButton>
             ) : (
               <TouchButton
                 onPress={disconnectDevice}
-                style={[styles.button, styles.disconnectButton]}
+                style={[
+                  styles.button,
+                  styles.disconnectButton,
+                  {
+                    paddingHorizontal: layout.buttonPaddingX,
+                    paddingVertical: layout.buttonPaddingY,
+                    borderRadius: layout.buttonRadius,
+                  },
+                ]}
                 pressedStyle={styles.buttonPressed}
               >
-                <Text style={styles.buttonText}>🔌 断开连接</Text>
+                <Text style={[styles.buttonText, { fontSize: layout.buttonTextSize }]}>
+                  🔌 断开连接
+                </Text>
               </TouchButton>
             )}
           </View>
@@ -401,7 +467,11 @@ export default function BluetoothCarScreen() {
             },
           ]}
         >
-          <ThemedText variant="small" color="#ffffff" style={styles.joystickLabel}>
+          <ThemedText
+            variant="small"
+            color="#ffffff"
+            style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap }]}
+          >
             左摇杆: {controlData.leftJoystick}
           </ThemedText>
           <VirtualJoystick
@@ -425,7 +495,11 @@ export default function BluetoothCarScreen() {
             },
           ]}
         >
-          <ThemedText variant="small" color="#ffffff" style={styles.joystickLabel}>
+          <ThemedText
+            variant="small"
+            color="#ffffff"
+            style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap }]}
+          >
             右摇杆: {controlData.rightJoystick}
           </ThemedText>
           <VirtualJoystick
@@ -504,23 +578,15 @@ const styles = StyleSheet.create({
   },
   header: {
     position: 'absolute',
-    top: 16,
-    left: 16,
-    right: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 10,
   },
   bluetoothControls: {
     flexDirection: 'row',
   },
   button: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
   },
   buttonPressed: {
     transform: [{ scale: 0.98 }],
@@ -533,7 +599,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#ffffff',
-    fontSize: 14,
     fontWeight: 'bold',
   },
   joystickWrapper: {
@@ -541,7 +606,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   joystickLabel: {
-    marginBottom: 8,
   },
   buttonRow: {
     position: 'absolute',

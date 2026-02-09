@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { TouchButton } from '@/components/TouchButton';
 
@@ -34,6 +34,35 @@ export const DebugLog: React.FC<DebugLogProps> = ({
   onClearLog,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);  // ScrollView引用（用于自动滚动）
+  const { width, height } = useWindowDimensions();
+  const screenWidth = Math.max(width, height);
+  const screenHeight = Math.min(width, height);
+  const panelWidth = screenWidth * 0.32;
+  const panelHeight = screenHeight * 0.55;
+  const panelTop = screenHeight * 0.18;
+  const panelLeft = Math.max(0, (screenWidth - panelWidth) / 2);
+  const collapsedWidth = screenWidth * 0.22;
+  const collapsedTop = screenHeight * 0.12;
+  const collapsedLeft = Math.max(0, (screenWidth - collapsedWidth) / 2);
+  const borderRadius = screenWidth * 0.015;
+  const borderWidth = screenWidth * 0.002;
+  const headerPadding = screenWidth * 0.012;
+  const statusPadding = screenWidth * 0.01;
+  const logPadding = screenWidth * 0.012;
+  const footerPadding = screenWidth * 0.01;
+  const toggleTextSize = screenWidth * 0.013;
+  const statusTextSize = screenWidth * 0.012;
+  const logTextSize = screenWidth * 0.011;
+  const emptyTextSize = screenWidth * 0.012;
+  const footerTextSize = screenWidth * 0.01;
+  const clearPaddingX = screenWidth * 0.01;
+  const clearPaddingY = screenHeight * 0.008;
+  const clearRadius = screenWidth * 0.008;
+  const statusGap = screenWidth * 0.006;
+  const statusTopMargin = screenHeight * 0.006;
+  const logMaxHeight = panelHeight * 0.7;
+  const logLineGap = screenHeight * 0.003;
+  const emptyTopMargin = screenHeight * 0.02;
 
   /**
    * 当有新日志时，自动滚动到底部
@@ -54,10 +83,23 @@ export const DebugLog: React.FC<DebugLogProps> = ({
   // 如果折叠了，显示一个小的状态栏
   if (isCollapsed) {
     return (
-      <ThemedView style={styles.collapsedContainer}>
+      <ThemedView
+        style={[
+          styles.collapsedContainer,
+          {
+            top: collapsedTop,
+            left: collapsedLeft,
+            width: collapsedWidth,
+            borderRadius,
+            borderWidth,
+          },
+        ]}
+      >
         <TouchButton onPress={toggleCollapse} style={styles.toggleButton}>
-          <Text style={styles.toggleText}>🔧 调试日志 (点击展开)</Text>
-          <Text style={styles.statusText}>{bluetoothStatus}</Text>
+          <Text style={[styles.toggleText, { fontSize: toggleTextSize }]}>🔧 调试日志 (点击展开)</Text>
+          <Text style={[styles.statusText, { fontSize: statusTextSize, marginTop: statusTopMargin }]}>
+            {bluetoothStatus}
+          </Text>
         </TouchButton>
       </ThemedView>
     );
@@ -65,21 +107,51 @@ export const DebugLog: React.FC<DebugLogProps> = ({
 
   // 展开状态，显示完整日志面板
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView
+      style={[
+        styles.container,
+        {
+          top: panelTop,
+          left: panelLeft,
+          width: panelWidth,
+          height: panelHeight,
+          borderRadius,
+          borderWidth,
+        },
+      ]}
+    >
       {/* 标题栏 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { padding: headerPadding, borderBottomWidth: borderWidth }] }>
         <TouchButton onPress={toggleCollapse} style={styles.toggleButton}>
-          <Text style={styles.toggleText}>🔧 调试日志 (点击折叠)</Text>
+          <Text style={[styles.toggleText, { fontSize: toggleTextSize }]}>🔧 调试日志 (点击折叠)</Text>
         </TouchButton>
-        <TouchButton onPress={onClearLog} style={styles.clearButton}>
-          <Text style={styles.clearText}>清空</Text>
+        <TouchButton
+          onPress={onClearLog}
+          style={[
+            styles.clearButton,
+            {
+              paddingHorizontal: clearPaddingX,
+              paddingVertical: clearPaddingY,
+              borderRadius: clearRadius,
+            },
+          ]}
+        >
+          <Text style={[styles.clearText, { fontSize: statusTextSize }]}>清空</Text>
         </TouchButton>
       </View>
 
       {/* 蓝牙状态 */}
-      <View style={styles.statusBar}>
-        <Text style={styles.statusLabel}>蓝牙状态：</Text>
-        <Text style={[styles.statusValue, { color: bluetoothStatus.includes('已连接') ? '#00FF00' : '#FF0000' }]}>
+      <View style={[styles.statusBar, { padding: statusPadding }]}>
+        <Text style={[styles.statusLabel, { fontSize: statusTextSize, marginRight: statusGap }]}>蓝牙状态：</Text>
+        <Text
+          style={[
+            styles.statusValue,
+            {
+              fontSize: statusTextSize,
+              color: bluetoothStatus.includes('已连接') ? '#00FF00' : '#FF0000',
+            },
+          ]}
+        >
           {bluetoothStatus}
         </Text>
       </View>
@@ -87,25 +159,27 @@ export const DebugLog: React.FC<DebugLogProps> = ({
       {/* 日志内容区域 */}
       <ScrollView
         ref={scrollViewRef}
-        style={styles.logArea}
+        style={[styles.logArea, { padding: logPadding, maxHeight: logMaxHeight }]}
         nestedScrollEnabled={true}
       >
         {/* 显示最近的数据包（最多显示50条） */}
         {packets.slice(-50).map((packet, index) => (
-          <Text key={index} style={styles.logText}>
+          <Text key={index} style={[styles.logText, { fontSize: logTextSize, marginBottom: logLineGap }]}>
             [{String(index + 1).padStart(3, '0')}] {packet}
           </Text>
         ))}
         
         {/* 如果没有日志 */}
         {packets.length === 0 && (
-          <Text style={styles.emptyText}>暂无日志数据</Text>
+          <Text style={[styles.emptyText, { fontSize: emptyTextSize, marginTop: emptyTopMargin }]}>
+            暂无日志数据
+          </Text>
         )}
       </ScrollView>
 
       {/* 底部统计信息 */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
+      <View style={[styles.footer, { padding: footerPadding, borderTopWidth: borderWidth }]}>
+        <Text style={[styles.footerText, { fontSize: footerTextSize }]}>
           共 {packets.length} 条数据包 | 显示最近 50 条
         </Text>
       </View>
@@ -116,24 +190,13 @@ export const DebugLog: React.FC<DebugLogProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 320,
-    height: 400,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    borderRadius: 10,
-    borderWidth: 2,
     borderColor: '#444',
     zIndex: 1000,
   },
   collapsedContainer: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 200,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 8,
-    borderWidth: 1,
     borderColor: '#666',
     zIndex: 1000,
   },
@@ -141,8 +204,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 10,
-    borderBottomWidth: 1,
     borderBottomColor: '#666',
   },
   toggleButton: {
@@ -150,67 +211,47 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     color: '#00FF00',
-    fontSize: 14,
     fontWeight: 'bold',
   },
   clearButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     backgroundColor: '#FF0000',
-    borderRadius: 5,
   },
   clearText: {
     color: '#FFFFFF',
-    fontSize: 12,
     fontWeight: 'bold',
   },
   statusBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   statusLabel: {
     color: '#CCCCCC',
-    fontSize: 12,
-    marginRight: 5,
   },
   statusValue: {
     color: '#00FF00',
-    fontSize: 12,
     fontWeight: 'bold',
   },
   statusText: {
     color: '#CCCCCC',
-    fontSize: 11,
-    marginTop: 5,
   },
   logArea: {
     flex: 1,
-    padding: 10,
-    maxHeight: 280,
   },
   logText: {
     color: '#00FF00',
-    fontSize: 11,
     fontFamily: 'Courier New',  // 等宽字体，方便查看十六进制数据
-    marginBottom: 2,
   },
   emptyText: {
     color: '#888888',
-    fontSize: 12,
     textAlign: 'center',
-    marginTop: 20,
   },
   footer: {
-    padding: 8,
-    borderTopWidth: 1,
     borderTopColor: '#666',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   footerText: {
     color: '#888888',
-    fontSize: 10,
     textAlign: 'center',
   },
 });
