@@ -35,7 +35,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   touchId,
   style,
 }) => {
-  void touchId;
   const baseRadius = size / 2;
   const knobRadius = size * 0.28;
   const maxOffset = Math.max(1, baseRadius - knobRadius);
@@ -43,16 +42,24 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   const lastSentValueRef = useRef(neutralValue);
   const x = useSharedValue(0);
   const y = useSharedValue(0);
+  const activeTouchId = useSharedValue<number | null>(null);
   const smoothingFactor = Math.max(0, Math.min(1, smoothing));
+
+  const resolveJoystickName = () => {
+    if (touchId === 0) return '左摇杆';
+    if (touchId === 1) return '右摇杆';
+    return '摇杆';
+  };
 
   const emitValue = useCallback(
     (value: number) => {
       if (Math.abs(value - lastSentValueRef.current) >= debounceThreshold) {
         lastSentValueRef.current = value;
+        console.log(`${resolveJoystickName()} touchID:${touchId ?? 'unknown'} 数值：${value}`);
         onChange(value);
       }
     },
-    [debounceThreshold, onChange]
+    [debounceThreshold, onChange, touchId]
   );
 
   const panGesture = useMemo(() => {
@@ -76,11 +83,19 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
 
     return Gesture.Pan()
       .minDistance(0)
-      .onBegin(() => {
+      .onBegin((event) => {
+        if (touchId !== undefined && event.pointerId !== touchId) {
+          activeTouchId.value = null;
+          return;
+        }
+        activeTouchId.value = event.pointerId ?? null;
         cancelAnimation(x);
         cancelAnimation(y);
       })
       .onUpdate((event) => {
+        if (touchId !== undefined && event.pointerId !== activeTouchId.value) {
+          return;
+        }
         const clamped = clampToCircle(event.translationX, event.translationY);
         const nextX = x.value + (clamped.x - x.value) * smoothingFactor;
         const nextY = y.value + (clamped.y - y.value) * smoothingFactor;
@@ -90,6 +105,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
         runOnJS(emitValue)(value);
       })
       .onFinalize(() => {
+        activeTouchId.value = null;
         x.value = withTiming(0, { duration: returnDurationMs });
         y.value = withTiming(0, { duration: returnDurationMs });
         runOnJS(emitValue)(neutralValue);
@@ -97,12 +113,14 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   }, [
     debounceThreshold,
     emitValue,
+    touchId,
     maxOffset,
     maxValue,
     minValue,
     neutralValue,
     returnDurationMs,
     smoothingFactor,
+    activeTouchId,
     x,
     y,
   ]);

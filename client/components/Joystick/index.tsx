@@ -16,9 +16,10 @@ interface JoystickProps {
   value: number;        // 当前数值（0-255）
   onChange: (value: number) => void;  // 数值变化回调
   label: string;        // 标签
+  touchId?: number;     // 绑定的触摸ID
 }
 
-export function Joystick({ value, onChange, label }: JoystickProps) {
+export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
@@ -27,10 +28,22 @@ export function Joystick({ value, onChange, label }: JoystickProps) {
   
   // 上一次发送的数值（用于防抖）
   const lastValueRef = useRef(127);
+  const activeTouchIdRef = useRef<number | null>(null);
   
   // 摇杆配置参数
   const JOYSTICK_RADIUS = 80;        // 摇杆半径
   const JOYSTICK_MAX_OFFSET = 60;    // 最大偏移量
+
+  const resolveJoystickName = () => {
+    if (touchId === 0) return '左摇杆';
+    if (touchId === 1) return '右摇杆';
+    return '摇杆';
+  };
+
+  const matchesTouchId = (identifier?: number | null) => {
+    if (touchId === undefined) return true;
+    return identifier === touchId;
+  };
   
   /**
    * PanResponder 处理触摸手势
@@ -39,16 +52,25 @@ export function Joystick({ value, onChange, label }: JoystickProps) {
   const panResponder = useRef(
     PanResponder.create({
       // 允许响应手势
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: (evt) =>
+        activeTouchIdRef.current === null && matchesTouchId(evt.nativeEvent.identifier),
+      onMoveShouldSetPanResponder: (evt) =>
+        activeTouchIdRef.current === null && matchesTouchId(evt.nativeEvent.identifier),
       
       // 触摸开始
-      onPanResponderGrant: () => {
+      onPanResponderGrant: (evt) => {
         // 可以在这里添加触摸开始的逻辑（如震动反馈）
+        if (!matchesTouchId(evt.nativeEvent.identifier)) {
+          return;
+        }
+        activeTouchIdRef.current = evt.nativeEvent.identifier ?? null;
       },
       
       // 触摸移动（核心逻辑）
       onPanResponderMove: (event, gestureState) => {
+        if (event.nativeEvent.identifier !== activeTouchIdRef.current) {
+          return;
+        }
         const { dy } = gestureState;  // dy: Y轴移动距离（正数向下，负数向上）
         
         // 限制最大偏移量
@@ -68,20 +90,29 @@ export function Joystick({ value, onChange, label }: JoystickProps) {
         // 类似于C语言中的if判断
         if (Math.abs(clampedValue - lastValueRef.current) >= 3) {
           lastValueRef.current = clampedValue;
+          console.log(`${resolveJoystickName()} touchID:${touchId ?? 'unknown'} 数值：${clampedValue}`);
           onChange(clampedValue);  // 回调通知父组件
         }
       },
       
       // 触摸结束
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt) => {
+        if (evt.nativeEvent.identifier !== activeTouchIdRef.current) {
+          return;
+        }
+        activeTouchIdRef.current = null;
         // 复位到中心位置
         setPosition({ x: 0, y: 0 });
         
         // 恢复中立位（127）
         if (lastValueRef.current !== 127) {
           lastValueRef.current = 127;
+          console.log(`${resolveJoystickName()} touchID:${touchId ?? 'unknown'} 数值：127`);
           onChange(127);
         }
+      },
+      onPanResponderTerminate: () => {
+        activeTouchIdRef.current = null;
       },
     })
   ).current;

@@ -149,6 +149,7 @@ export default function ControllerScreen() {
             value={leftJoystick}
             onChange={setLeftJoystick}
             label="左轮"
+            touchId={0}
           />
           
           {/* 右摇杆 */}
@@ -156,6 +157,7 @@ export default function ControllerScreen() {
             value={rightJoystick}
             onChange={setRightJoystick}
             label="右轮"
+            touchId={1}
           />
         </View>
         
