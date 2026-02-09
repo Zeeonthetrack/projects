@@ -85,6 +85,7 @@ export const createStyles = (layout: LayoutMetrics) => StyleSheet.create({
     height: layout.buttonAreaHeight,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 10,
   },
   buttonRow: {
     width: layout.buttonSlotWidth,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Alert, TouchableOpacity, Text, useWindowDimensions } from 'react-native';
+import { View, Alert, TouchableOpacity, Text, useWindowDimensions, PermissionsAndroid, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/Screen';
 import { ThemedView } from '@/components/ThemedView';
@@ -53,18 +53,22 @@ export default function BluetoothCarScreen() {
   // 定时器引用（用于5ms周期发送）
   const sendDataTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const horizontalPadding = Math.max(12, Math.round(width * 0.02));
+  // 布局比例说明：左右摇杆各占30%，中间空区40%，底部按钮区占40%
+  const horizontalPadding = Math.max(10, Math.round(width * 0.02));
   const topBarHeight = Math.max(36, Math.round(height * 0.08));
   const topBarTop = insets.top + 6;
   const topPadding = topBarTop + topBarHeight + 6;
   const bottomPadding = insets.bottom + 10;
-  const joystickSlotWidth = width * 0.35;
-  const centerSlotWidth = width * 0.3;
-  const buttonSlotWidth = width * 0.3;
-  const buttonGap = Math.max(8, Math.round(buttonSlotWidth * 0.04));
+  const usableWidth = Math.max(0, width - horizontalPadding * 2);
+  const joystickSlotWidth = usableWidth * 0.3;
+  const centerSlotWidth = usableWidth * 0.4;
+  const buttonSlotWidth = usableWidth * 0.4;
+  const buttonGap = Math.max(10, Math.round(buttonSlotWidth * 0.04));
   const buttonWidth = Math.max(64, Math.floor((buttonSlotWidth - buttonGap * 3) / 4));
   const buttonHeight = Math.min(Math.round(height * 0.16), 80);
-  const joystickSize = Math.min(joystickSlotWidth * 0.85, height * 0.6);
+  // 摇杆整体缩小30%，避免横屏拥挤
+  const joystickBase = Math.min(joystickSlotWidth * 0.85, height * 0.6);
+  const joystickSize = Math.max(96, Math.round(joystickBase * 0.7));
   const knobSize = Math.max(44, Math.round(joystickSize * 0.42));
   const labelFontSize = Math.max(12, Math.round(height * 0.02));
   const statusFontSize = Math.max(11, Math.round(height * 0.018));
@@ -205,14 +209,42 @@ export default function BluetoothCarScreen() {
    * 注意：5ms周期对于React Native可能过于频繁，实际使用中建议20-50ms
    */
   const startDataSending = useCallback(() => {
-    // 使用20ms周期（5ms可能过于频繁，导致性能问题）
-    // 如果确实需要5ms，可以改为 setInterval(sendDataPacket, 5)
+    // 保留5ms周期发送逻辑（与原协议保持一致）
     sendDataTimer.current = setInterval(() => {
       sendDataPacket();
-    }, 20);
+    }, 5);
     
-    console.log('[数据发送] 已启动，周期：20ms');
+    console.log('[数据发送] 已启动，周期：5ms');
   }, [sendDataPacket]);
+  /**
+   * 请求蓝牙权限（首次触发蓝牙操作时调用）
+   * - 触发系统权限弹窗
+   * - 若用户拒绝，弹出提示并终止扫描/连接
+   */
+  const requestBluetoothPermissions = useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const permissions = [
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADMIN,
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+    ].filter(Boolean) as string[];
+
+    const result = await PermissionsAndroid.requestMultiple(permissions);
+    const denied = permissions.some((permission) => result[permission] !== PermissionsAndroid.RESULTS.GRANTED);
+
+    if (denied) {
+      Alert.alert('提示', '请授予蓝牙权限以控制小车');
+      return false;
+    }
+
+    return true;
+  }, []);
+
 
   /**
    * 停止数据发送定时器
@@ -239,6 +271,13 @@ export default function BluetoothCarScreen() {
   const scanDevices = useCallback(async () => {
     if (isScanning) {
       Alert.alert('提示', '正在扫描中，请稍候...');
+      return;
+    }
+
+    // 首次触发蓝牙功能时先申请权限
+    const hasPermission = await requestBluetoothPermissions();
+    if (!hasPermission) {
+      setBluetoothStatus('未连接');
       return;
     }
 
@@ -300,7 +339,7 @@ export default function BluetoothCarScreen() {
     } finally {
       setIsScanning(false);
     }
-  }, [isScanning, bluetoothManager]);
+  }, [isScanning, bluetoothManager, requestBluetoothPermissions]);
 
   /**
    * 连接到指定设备

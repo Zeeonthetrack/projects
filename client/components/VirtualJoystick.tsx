@@ -1,6 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { ThemedView } from '@/components/ThemedView';
 
 /**
@@ -40,6 +39,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
 }) => {
   const [knobPosition, setKnobPosition] = useState({ x: 0, y: 0 });  // 摇杆头位置
   const [isActive, setIsActive] = useState(false);
+  const activeTouchId = useRef<number | null>(null);  // 当前摇杆占用的触点ID（多触点识别）
   const baseDiameter = size ?? 160;
   const knobDiameter = knobSize ?? Math.round(baseDiameter * 0.42);
   const baseRadius = baseDiameter / 2;
@@ -80,89 +80,130 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     }
   }, [calculateValue, debounceThreshold, onChange]);
 
-  const handleGestureEvent = useCallback((event: any) => {
-    const { translationX, translationY } = event.nativeEvent;
-    const distance = Math.sqrt(translationX * translationX + translationY * translationY);
+  const updateFromTouch = useCallback((touch: any) => {
+    const offsetX = touch.locationX - baseRadius;
+    const offsetY = touch.locationY - baseRadius;
+    const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
 
-    let limitedX = translationX;
-    let limitedY = translationY;
+    let limitedX = offsetX;
+    let limitedY = offsetY;
 
     if (distance > maxOffset) {
       const ratio = maxOffset / distance;
-      limitedX = translationX * ratio;
-      limitedY = translationY * ratio;
+      limitedX = offsetX * ratio;
+      limitedY = offsetY * ratio;
     }
 
     setKnobPosition({ x: limitedX, y: limitedY });
     updateValue(limitedY);
-  }, [maxOffset, updateValue]);
+  }, [baseRadius, maxOffset, updateValue]);
 
-  const handleStateChange = useCallback((event: any) => {
-    const { state } = event.nativeEvent;
+  const findTouch = (touches: any[], targetId: number | null) => {
+    if (targetId === null) {
+      return null;
+    }
+    return touches.find((touch) => touch.identifier === targetId) ?? null;
+  };
 
-    if (state === State.BEGAN) {
-      setIsActive(true);
-      setKnobPosition({ x: 0, y: 0 });
-      onChange(neutralValue);
-      previousValue.current = neutralValue;
+  const handleTouchStart = useCallback((event: any) => {
+    if (activeTouchId.current !== null) {
       return;
     }
 
-    if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-      setIsActive(false);
-      setKnobPosition({ x: 0, y: 0 });
-      if (previousValue.current !== neutralValue) {
-        previousValue.current = neutralValue;
-        onChange(neutralValue);
-      }
+    const touch = event.nativeEvent.touches?.[0];
+    if (!touch) {
+      return;
+    }
+
+    // 多触点：记录当前摇杆正在使用的触点ID，避免互相抢占
+    activeTouchId.current = touch.identifier;
+    setIsActive(true);
+    setKnobPosition({ x: 0, y: 0 });
+    previousValue.current = neutralValue;
+    onChange(neutralValue);
+    updateFromTouch(touch);
+  }, [neutralValue, onChange, updateFromTouch]);
+
+  const handleTouchMove = useCallback((event: any) => {
+    if (activeTouchId.current === null) {
+      return;
+    }
+
+    const touches = event.nativeEvent.touches || [];
+    const changed = event.nativeEvent.changedTouches || [];
+    const touch = findTouch(touches, activeTouchId.current) || findTouch(changed, activeTouchId.current);
+    if (!touch) {
+      return;
+    }
+
+    updateFromTouch(touch);
+  }, [updateFromTouch]);
+
+  const handleTouchEnd = useCallback((event: any) => {
+    if (activeTouchId.current === null) {
+      return;
+    }
+
+    const changed = event.nativeEvent.changedTouches || [];
+    const touch = findTouch(changed, activeTouchId.current);
+    if (!touch) {
+      return;
+    }
+
+    activeTouchId.current = null;
+    setIsActive(false);
+    setKnobPosition({ x: 0, y: 0 });
+    if (previousValue.current !== neutralValue) {
+      previousValue.current = neutralValue;
+      onChange(neutralValue);
     }
   }, [neutralValue, onChange]);
 
   return (
     <ThemedView style={[styles.container, style]}>
-      <PanGestureHandler
-        onGestureEvent={handleGestureEvent}
-        onHandlerStateChange={handleStateChange}
-        shouldCancelWhenOutside={false}
+      <View
+        style={[
+          styles.base,
+          {
+            width: baseDiameter,
+            height: baseDiameter,
+            borderRadius: baseRadius,
+            backgroundColor: isActive ? 'rgba(210, 210, 210, 0.6)' : 'rgba(200, 200, 200, 0.45)',
+          },
+        ]}
+        // 多触点开启：允许左右摇杆与按键同时触控
+        multiTouchEnabled={true}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         <View
           style={[
-            styles.base,
+            styles.neutralMarker,
             {
-              width: baseDiameter,
-              height: baseDiameter,
-              borderRadius: baseRadius,
-              backgroundColor: isActive ? 'rgba(210, 210, 210, 0.6)' : 'rgba(200, 200, 200, 0.45)',
+              width: knobDiameter * 0.32,
+              height: knobDiameter * 0.32,
+              borderRadius: (knobDiameter * 0.32) / 2,
             },
           ]}
-        >
-          <View
-            style={[
-              styles.neutralMarker,
-              {
-                width: knobDiameter * 0.32,
-                height: knobDiameter * 0.32,
-                borderRadius: (knobDiameter * 0.32) / 2,
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.knob,
-              {
-                width: knobDiameter,
-                height: knobDiameter,
-                borderRadius: knobRadius,
-                backgroundColor: isActive ? '#F0F0F0' : '#FFFFFF',
-                transform: [
-                  { translateX: knobPosition.x },
-                  { translateY: knobPosition.y },
-                ],
-              },
-            ]}
-          />
-        </View>
-      </PanGestureHandler>
+        />
+        <View
+          style={[
+            styles.knob,
+            {
+              width: knobDiameter,
+              height: knobDiameter,
+              borderRadius: knobRadius,
+              backgroundColor: isActive ? '#F0F0F0' : '#FFFFFF',
+              transform: [
+                { translateX: knobPosition.x },
+                { translateY: knobPosition.y },
+              ],
+            },
+          ]}
+        />
+      </View>
     </ThemedView>
   );
 };

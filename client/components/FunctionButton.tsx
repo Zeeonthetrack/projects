@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 /**
  * 功能按键类型定义
@@ -107,7 +107,7 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
   };
 
   return (
-    <TouchableOpacity
+    <View
       style={[
         styles.button,
         {
@@ -117,12 +117,14 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
           transform: [{ scale: isPressed ? 0.95 : 1 }],  // 按下时缩小效果
         },
       ]}
-      onPressIn={handlePressIn}    // 按下时触发
-      onPressOut={handlePressOut}  // 松开时触发
-      activeOpacity={0.85}
+      // 多触点支持：使用原生触摸事件避免被摇杆独占
+      multiTouchEnabled={true}
+      onTouchStart={handlePressIn}
+      onTouchEnd={handlePressOut}
+      onTouchCancel={handlePressOut}
     >
       <Text style={[styles.label, fontSize ? { fontSize } : null]}>{label}</Text>
-    </TouchableOpacity>
+    </View>
   );
 };
 
