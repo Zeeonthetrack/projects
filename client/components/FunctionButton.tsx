@@ -86,17 +86,14 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
    * - 相当于C语言的 return (isPressed) ? 0x01 : 0x00;
    * - 相当于Python的 return 0x01 if is_pressed else 0x00
    */
-  const getButtonValue = (): number => {
-    if (isPressed) {
-      // 按下时返回对应的状态值
-      switch (type) {
-        case 'red': return 0x01;  // 红色按下：0x01（十六进制）
-        case 'blue': return 0x02; // 蓝色按下：0x02
-        case 'green': return 0x03; // 绿色按下：0x03
-        case 'yellow': return 0x04; // 黄色按下：0x04
-      }
+  const getPressedValue = (): number => {
+    // 按下时返回对应的状态值
+    switch (type) {
+      case 'red': return 0x01;  // 红色按下：0x01（十六进制）
+      case 'blue': return 0x02; // 蓝色按下：0x02
+      case 'green': return 0x03; // 绿色按下：0x03
+      case 'yellow': return 0x04; // 黄色按下：0x04
     }
-    return 0x00;  // 松开时返回0x00
   };
 
   /**
@@ -108,7 +105,7 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
    */
   const handlePressIn = () => {
     setIsPressed(true);
-    onPress(getButtonValue());  // 通知父组件按键状态变化
+    onPress(getPressedValue());  // 通知父组件按键状态变化
   };
 
   /**

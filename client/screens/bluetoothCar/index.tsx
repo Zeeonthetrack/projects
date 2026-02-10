@@ -95,6 +95,8 @@ export default function BluetoothCarScreen() {
   const [isLogCollapsed, setIsLogCollapsed] = useState(true);
   const [packets, setPackets] = useState<string[]>([]);
 
+  const currentPacket = useMemo(() => formatPacketHex(createDataPacket(controlData)), [controlData]);
+
   // 设置相关状态
   const [settings, setSettings] = useState<ControlSettings>(defaultSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -484,6 +486,12 @@ export default function BluetoothCarScreen() {
     const modalHeight = screenHeight * 0.7;
     const rootPaddingX = screenWidth * 0.02;
     const rootPaddingY = screenHeight * 0.02;
+    const packetWidth = screenWidth * 0.48;
+    const packetLeft = Math.max(0, (screenWidth - packetWidth) / 2);
+    const packetTop = headerTop + headerHeight + screenHeight * 0.15;
+    const packetPaddingX = screenWidth * 0.018;
+    const packetPaddingY = screenHeight * 0.012;
+    const packetRadius = screenWidth * 0.012;
 
     return {
       joystickSize,
@@ -512,6 +520,12 @@ export default function BluetoothCarScreen() {
       modalHeight,
       rootPaddingX,
       rootPaddingY,
+      packetWidth,
+      packetLeft,
+      packetTop,
+      packetPaddingX,
+      packetPaddingY,
+      packetRadius,
     };
   }, [screenHeight, screenWidth]);
 
@@ -594,7 +608,7 @@ export default function BluetoothCarScreen() {
           </View>
           <View style={styles.headerColumnCenter}>
             <ThemedText variant="h3" color="#ffffff">🚗 蓝牙遥控小车</ThemedText>
-            <ThemedText variant="caption" color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }}>v1.9</ThemedText>
+            <ThemedText variant="caption" color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }}>v1.12</ThemedText>
           </View>
           <View style={[styles.headerColumnRight, { gap: layout.headerGap }]}
           >
@@ -640,6 +654,30 @@ export default function BluetoothCarScreen() {
 
         <View
           style={[
+            styles.packetPanel,
+            {
+              top: layout.packetTop,
+              left: layout.packetLeft,
+              width: layout.packetWidth,
+              paddingVertical: layout.packetPaddingY,
+              paddingHorizontal: layout.packetPaddingX,
+              borderRadius: layout.packetRadius,
+            },
+          ]}
+        >
+          <ThemedText variant="caption" color="rgba(255,255,255,0.65)" style={styles.packetLabel}>
+            当前数据包 (8字节)
+          </ThemedText>
+          <ThemedText variant="h4" color="#5A96FF" style={styles.packetValue}>
+            {currentPacket}
+          </ThemedText>
+          <ThemedText variant="caption" color="rgba(255,255,255,0.45)" style={styles.packetLegend}>
+            左轮 右轮 红灯 蓝灯 绿灯 黄灯 校验1 校验2
+          </ThemedText>
+        </View>
+
+        <View
+          style={[
             styles.controlRow,
             {
               left: layout.rowLeft,
@@ -654,7 +692,7 @@ export default function BluetoothCarScreen() {
               color="#ffffff"
               style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap, fontSize: layout.joystickValueSize }]}
             >
-              左摇杆: {controlData.leftJoystick}
+              左摇杆
             </ThemedText>
             <VirtualJoystick
               onChange={(value) => handleJoystickChange('left', value)}
@@ -716,7 +754,7 @@ export default function BluetoothCarScreen() {
               color="#ffffff"
               style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap, fontSize: layout.joystickValueSize }]}
             >
-              右摇杆: {controlData.rightJoystick}
+              右摇杆
             </ThemedText>
             <VirtualJoystick
               onChange={(value) => handleJoystickChange('right', value)}
@@ -942,6 +980,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  packetPanel: {
+    position: 'absolute',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(90, 150, 255, 0.35)',
+    alignItems: 'center',
+  },
+  packetLabel: {
+    marginBottom: 6,
+  },
+  packetValue: {
+    fontFamily: 'Courier New',
+    letterSpacing: 2,
+  },
+  packetLegend: {
+    marginTop: 6,
   },
   joystickWrapper: {
     alignItems: 'center',

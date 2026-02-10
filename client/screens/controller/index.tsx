@@ -151,7 +151,7 @@ export default function ControllerScreen() {
               variant="caption"
               style={{ marginRight: 12, color: theme.textSecondary }}
             >
-              v1.9
+              v1.10
             </ThemedText>
             <ThemedText
               variant="caption"
