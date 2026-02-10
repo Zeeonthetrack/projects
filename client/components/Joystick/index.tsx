@@ -1,5 +1,13 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { View, PanResponder, StyleSheet, Text } from 'react-native';
+import React, { useRef, useMemo, useCallback } from 'react';
+import { View, Text } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  Easing,
+  runOnJS,
+} from 'react-native-reanimated';
 import { useTheme } from '@/hooks/useTheme';
 import { createStyles } from './styles';
 
@@ -23,15 +31,14 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
-  // 摇杆位置状态
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  // 使用 Reanimated shared values 替代 useState
+  const offsetY = useSharedValue(0);
+  const activeTouchId = useSharedValue<number | null>(null);
   
   // 上一次发送的数值（用于防抖）
   const lastValueRef = useRef(127);
-  const activeTouchIdRef = useRef<number | null>(null);
   
   // 摇杆配置参数
-  const JOYSTICK_RADIUS = 80;        // 摇杆半径
   const JOYSTICK_MAX_OFFSET = 60;    // 最大偏移量
 
   const resolveJoystickName = () => {
@@ -39,81 +46,93 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
     if (touchId === 1) return '右摇杆';
     return '摇杆';
   };
+
+  // 数值更新回调 - 使用 useCallback 避免闭包问题
+  const emitValue = useCallback((clampedValue: number) => {
+    if (Math.abs(clampedValue - lastValueRef.current) >= 3) {
+      lastValueRef.current = clampedValue;
+      console.log(`${resolveJoystickName()} touchID:${touchId ?? 'unknown'} 数值：${clampedValue}`);
+      onChange(clampedValue);
+    }
+  }, [onChange, touchId]);
   
   /**
-   * PanResponder 处理触摸手势
-   * 支持多点触控：每个摇杆独立处理自己的触摸事件
+   * 使用 gesture-handler 的 Pan 手势
+   * 支持真正的多点触控，每个摇杆独立处理
    */
-  const panResponder = useRef(
-    PanResponder.create({
-      // 允许响应手势：只有当前摇杆空闲时才接受新触摸
-      onStartShouldSetPanResponder: () => activeTouchIdRef.current === null,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: () => false,
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => false,
-      
-      // 触摸开始
-      onPanResponderGrant: (evt) => {
-        // 双重检查：确保当前没有活动触摸
-        if (activeTouchIdRef.current !== null) {
+  const panGesture = useMemo(() => {
+    return Gesture.Pan()
+      .minDistance(0)
+      .enableTrackpadTwoFingerGesture(false)
+      .onBegin((event) => {
+        // 只有当前摇杆空闲时才接受新触摸
+        if (activeTouchId.value !== null) {
           return;
         }
-        // 记录触摸ID
-        activeTouchIdRef.current = evt.nativeEvent.identifier ?? null;
-      },
-      
-      // 触摸移动（核心逻辑）
-      onPanResponderMove: (event, gestureState) => {
+        const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        activeTouchId.value = pointerId;
+      })
+      .onUpdate((event) => {
         // 验证触摸ID匹配
-        if (event.nativeEvent.identifier !== activeTouchIdRef.current) {
+        const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        if (activeTouchId.value !== pointerId) {
           return;
         }
-        const { dy } = gestureState;  // dy: Y轴移动距离（正数向下，负数向上）
         
         // 限制最大偏移量
+        const dy = event.translationY;
         const clampedY = Math.max(-JOYSTICK_MAX_OFFSET, Math.min(JOYSTICK_MAX_OFFSET, dy));
+        offsetY.value = clampedY;
         
-        // 更新摇杆位置
-        setPosition({ x: 0, y: clampedY });
-        
-        // 将偏移量映射到0-255范围
-        // -60 (最上) → 255 (前进)
-        // 0 (中心)  → 127 (停止)
-        // +60 (最下) → 0 (后退)
+        // 映射到0-255范围
         const normalizedValue = Math.round(127 - (clampedY / JOYSTICK_MAX_OFFSET) * 127);
         const clampedValue = Math.max(0, Math.min(255, normalizedValue));
         
-        // 防抖处理：数值变化幅度<3时不更新
-        // 类似于C语言中的if判断
-        if (Math.abs(clampedValue - lastValueRef.current) >= 3) {
-          lastValueRef.current = clampedValue;
-          console.log(`${resolveJoystickName()} touchID:${touchId ?? 'unknown'} 数值：${clampedValue}`);
-          onChange(clampedValue);  // 回调通知父组件
-        }
-      },
-      
-      // 触摸结束
-      onPanResponderRelease: (evt) => {
-        if (evt.nativeEvent.identifier !== activeTouchIdRef.current) {
+        // 使用 runOnJS 在 JS 线程中调用回调
+        runOnJS(emitValue)(clampedValue);
+      })
+      .onFinalize((event) => {
+        // 验证触摸ID匹配
+        const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        if (activeTouchId.value !== pointerId) {
           return;
         }
-        activeTouchIdRef.current = null;
-        // 复位到中心位置
-        setPosition({ x: 0, y: 0 });
         
-        // 恢复中立位（127）
+        activeTouchId.value = null;
+        
+        // 平滑回弹到中心
+        offsetY.value = withTiming(0, {
+          duration: 150,
+          easing: Easing.out(Easing.cubic),
+        });
+        
+        // 恢复中立位
         if (lastValueRef.current !== 127) {
           lastValueRef.current = 127;
+          runOnJS(onChange)(127);
           console.log(`${resolveJoystickName()} touchID:${touchId ?? 'unknown'} 数值：127`);
-          onChange(127);
         }
-      },
-      onPanResponderTerminate: () => {
-        activeTouchIdRef.current = null;
-      },
-    })
-  ).current;
+      });
+  }, [touchId, emitValue, onChange]);
+
+  // 动画样式 - 拖动时颜色渐变，增强视觉反馈
+  const animatedStyle = useAnimatedStyle(() => {
+    // 计算拖动距离比例
+    const progress = Math.abs(offsetY.value) / JOYSTICK_MAX_OFFSET;
+    
+    // 颜色从 #42A5F5 渐变到 #7BC4F7 (拖动时变亮)
+    const baseR = 66, baseG = 165, baseB = 245;
+    const targetR = 123, targetG = 196, targetB = 247;
+    
+    const r = Math.round(baseR + (targetR - baseR) * progress);
+    const g = Math.round(baseG + (targetG - baseG) * progress);
+    const b = Math.round(baseB + (targetB - baseB) * progress);
+    
+    return {
+      transform: [{ translateY: offsetY.value }],
+      backgroundColor: `rgb(${r}, ${g}, ${b})`,
+    };
+  });
   
   return (
     <View style={styles.container}>
@@ -122,19 +141,13 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
       
       {/* 摇杆外圈 */}
       <View style={styles.outerCircle}>
-        {/* 摇杆内圈（可触摸） */}
-        <View
-          style={[
-            styles.innerCircle,
-            {
-              transform: [{ translateY: position.y }],
-            },
-          ]}
-          {...panResponder.panHandlers}
-        >
-          {/* 摇杆中心点 */}
-          <View style={styles.centerDot} />
-        </View>
+        {/* 摇杆内圈（可触摸） - 使用 GestureDetector */}
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.innerCircle, animatedStyle]}>
+            {/* 摇杆中心点 */}
+            <View style={styles.centerDot} />
+          </Animated.View>
+        </GestureDetector>
       </View>
     </View>
   );

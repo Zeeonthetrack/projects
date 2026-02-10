@@ -95,6 +95,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
 
     return Gesture.Pan()
       .minDistance(0)
+      .enableTrackpadTwoFingerGesture(false)
+
       .onBegin((event) => {
         const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
         // 只有当前摇杆空闲时才接受新触摸
@@ -121,7 +123,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
       })
       .onFinalize((event) => {
         const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
-        if (activeTouchId.value !== null && pointerId !== activeTouchId.value) {
+        // 只处理属于当前摇杆的触摸结束事件
+        if (activeTouchId.value !== pointerId) {
           return;
         }
         activeTouchId.value = null;
