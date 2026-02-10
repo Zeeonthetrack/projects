@@ -31,9 +31,11 @@ import { BluetoothDevice } from '@/utils/bluetoothTypes';
  */
 
 const SETTINGS_STORAGE_KEY = 'bluetoothCarSettings';
+const LAYOUT_STORAGE_KEY = 'bluetoothCarLayout';
 
 type TextEncoding = 'GBK' | 'UTF-8';
 type NewlineFormat = '\r\n' | '\n' | '\r';
+type LayoutPreset = 'default' | 'compact' | 'spacious' | 'custom';
 
 interface ControlSettings {
   textEncoding: TextEncoding;
@@ -45,6 +47,14 @@ interface ControlSettings {
   joystickSensitivity: number;
 }
 
+interface LayoutConfig {
+  preset: LayoutPreset;
+  joystickScale: number;      // 摇杆缩放 0.5-1.5
+  buttonScale: number;        // 按钮缩放 0.5-1.5
+  bottomOffset: number;       // 底部偏移 0-0.3
+  elementGap: number;         // 元素间距 0.5-2.0
+}
+
 const defaultSettings: ControlSettings = {
   textEncoding: 'UTF-8',
   newlineFormat: '\n',
@@ -54,6 +64,38 @@ const defaultSettings: ControlSettings = {
   dataPacketAppendNewline: false,
   joystickSensitivity: 5,
 };
+
+const layoutPresets: Record<LayoutPreset, Omit<LayoutConfig, 'preset'>> = {
+  default: {
+    joystickScale: 1.0,
+    buttonScale: 1.0,
+    bottomOffset: 0.06,
+    elementGap: 1.0,
+  },
+  compact: {
+    joystickScale: 0.8,
+    buttonScale: 0.8,
+    bottomOffset: 0.04,
+    elementGap: 0.7,
+  },
+  spacious: {
+    joystickScale: 1.2,
+    buttonScale: 1.2,
+    bottomOffset: 0.08,
+    elementGap: 1.3,
+  },
+  custom: {
+    joystickScale: 1.0,
+    buttonScale: 1.0,
+    bottomOffset: 0.06,
+    elementGap: 1.0,
+  },
+};
+
+const getDefaultLayoutConfig = (): LayoutConfig => ({
+  preset: 'default',
+  ...layoutPresets.default,
+});
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -99,7 +141,9 @@ export default function BluetoothCarScreen() {
 
   // 设置相关状态
   const [settings, setSettings] = useState<ControlSettings>(defaultSettings);
+  const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(getDefaultLayoutConfig());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'layout'>('general');
   
   // 定时器引用（用于5ms周期发送）
   const sendDataTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -429,6 +473,11 @@ export default function BluetoothCarScreen() {
           const parsed = JSON.parse(stored) as Partial<ControlSettings>;
           setSettings(normalizeSettings(parsed));
         }
+        const storedLayout = await AsyncStorage.getItem(LAYOUT_STORAGE_KEY);
+        if (storedLayout) {
+          const parsed = JSON.parse(storedLayout) as LayoutConfig;
+          setLayoutConfig(parsed);
+        }
       } catch (error) {
         console.warn('[设置] 读取失败，使用默认值', error);
       }
@@ -444,6 +493,12 @@ export default function BluetoothCarScreen() {
   }, [settings]);
 
   useEffect(() => {
+    AsyncStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layoutConfig)).catch((error) => {
+      console.warn('[布局] 保存失败', error);
+    });
+  }, [layoutConfig]);
+
+  useEffect(() => {
     if (isConnected) {
       stopDataSending();
       startDataSending();
@@ -455,16 +510,16 @@ export default function BluetoothCarScreen() {
   const screenHeight = Math.min(width, height);
 
   const layout = useMemo(() => {
-    const baseJoystickSize = screenWidth * 0.25;
-    const baseButtonSize = screenWidth * 0.1;
-    const baseGap = screenWidth * 0.05;
+    const baseJoystickSize = screenWidth * 0.25 * layoutConfig.joystickScale;
+    const baseButtonSize = screenWidth * 0.1 * layoutConfig.buttonScale;
+    const baseGap = screenWidth * 0.05 * layoutConfig.elementGap;
     const totalRowWidth = baseJoystickSize * 2 + baseButtonSize * 4 + baseGap * 5;
     const scale = Math.min(1, screenWidth / totalRowWidth);
     const joystickSize = baseJoystickSize * scale;
     const buttonSize = baseButtonSize * scale;
     const buttonGap = baseGap * scale;
     const controlGap = baseGap * scale;
-    const bottomOffset = screenHeight * 0.06;
+    const bottomOffset = screenHeight * layoutConfig.bottomOffset;
     const rowWidth = joystickSize * 2 + buttonSize * 4 + buttonGap * 3 + controlGap * 2;
     const rowLeft = Math.max(0, (screenWidth - rowWidth) / 2);
     const headerTop = screenHeight * 0.03;
@@ -527,7 +582,7 @@ export default function BluetoothCarScreen() {
       packetPaddingY,
       packetRadius,
     };
-  }, [screenHeight, screenWidth]);
+  }, [screenHeight, screenWidth, layoutConfig]);
 
   const joystickSmoothing = useMemo(() => {
     const min = 0.08;
@@ -608,7 +663,7 @@ export default function BluetoothCarScreen() {
           </View>
           <View style={styles.headerColumnCenter}>
             <ThemedText variant="h3" color="#ffffff">🚗 蓝牙遥控小车</ThemedText>
-            <ThemedText variant="caption" color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }}>v1.12</ThemedText>
+            <ThemedText variant="caption" color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }}>v1.13</ThemedText>
           </View>
           <View style={[styles.headerColumnRight, { gap: layout.headerGap }]}
           >
@@ -793,7 +848,36 @@ export default function BluetoothCarScreen() {
                 </TouchButton>
               </View>
 
+              {/* 标签页切换 */}
+              <View style={styles.settingsTabs}>
+                <TouchButton
+                  onPress={() => setSettingsTab('general')}
+                  style={[
+                    styles.tabButton,
+                    settingsTab === 'general' ? styles.tabButtonActive : null,
+                  ]}
+                >
+                  <Text style={[styles.tabText, settingsTab === 'general' ? styles.tabTextActive : null]}>
+                    常规设置
+                  </Text>
+                </TouchButton>
+                <TouchButton
+                  onPress={() => setSettingsTab('layout')}
+                  style={[
+                    styles.tabButton,
+                    settingsTab === 'layout' ? styles.tabButtonActive : null,
+                  ]}
+                >
+                  <Text style={[styles.tabText, settingsTab === 'layout' ? styles.tabTextActive : null]}>
+                    布局配置
+                  </Text>
+                </TouchButton>
+              </View>
+
               <ScrollView style={styles.settingsBody} contentContainerStyle={styles.settingsBodyContent}>
+                {settingsTab === 'general' && (
+                  <>
+                    {/* 常规设置内容 */}
                 <View style={styles.settingsRow}>
                   <Text style={styles.settingsLabel}>文本编码</Text>
                   <View style={styles.settingsOptions}>
@@ -906,6 +990,127 @@ export default function BluetoothCarScreen() {
                     />
                   </View>
                 </View>
+                  </>
+                )}
+
+                {settingsTab === 'layout' && (
+                  <>
+                    {/* 布局配置内容 */}
+                    <View style={styles.settingsRow}>
+                      <Text style={styles.settingsLabel}>布局预设</Text>
+                      <View style={styles.settingsOptions}>
+                        <TouchButton
+                          onPress={() => setLayoutConfig({ preset: 'default', ...layoutPresets.default })}
+                          style={[
+                            styles.optionButton,
+                            layoutConfig.preset === 'default' ? styles.optionButtonActive : null,
+                          ]}
+                        >
+                          <Text style={styles.optionText}>默认</Text>
+                        </TouchButton>
+                        <TouchButton
+                          onPress={() => setLayoutConfig({ preset: 'compact', ...layoutPresets.compact })}
+                          style={[
+                            styles.optionButton,
+                            layoutConfig.preset === 'compact' ? styles.optionButtonActive : null,
+                          ]}
+                        >
+                          <Text style={styles.optionText}>紧凑</Text>
+                        </TouchButton>
+                        <TouchButton
+                          onPress={() => setLayoutConfig({ preset: 'spacious', ...layoutPresets.spacious })}
+                          style={[
+                            styles.optionButton,
+                            layoutConfig.preset === 'spacious' ? styles.optionButtonActive : null,
+                          ]}
+                        >
+                          <Text style={styles.optionText}>宽松</Text>
+                        </TouchButton>
+                      </View>
+                    </View>
+
+                    <Text style={styles.sectionTitle}>自定义调整</Text>
+
+                    <View style={styles.settingsRow}>
+                      <Text style={styles.settingsLabel}>摇杆大小 ({(layoutConfig.joystickScale * 100).toFixed(0)}%)</Text>
+                      <View style={styles.sliderContainer}>
+                        <Slider
+                          minimumValue={0.5}
+                          maximumValue={1.5}
+                          step={0.1}
+                          value={layoutConfig.joystickScale}
+                          onValueChange={(value) =>
+                            setLayoutConfig((prev) => ({ ...prev, preset: 'custom', joystickScale: value }))
+                          }
+                          minimumTrackTintColor="#5A96FF"
+                          maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
+                          thumbTintColor="#5A96FF"
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.settingsRow}>
+                      <Text style={styles.settingsLabel}>按钮大小 ({(layoutConfig.buttonScale * 100).toFixed(0)}%)</Text>
+                      <View style={styles.sliderContainer}>
+                        <Slider
+                          minimumValue={0.5}
+                          maximumValue={1.5}
+                          step={0.1}
+                          value={layoutConfig.buttonScale}
+                          onValueChange={(value) =>
+                            setLayoutConfig((prev) => ({ ...prev, preset: 'custom', buttonScale: value }))
+                          }
+                          minimumTrackTintColor="#5A96FF"
+                          maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
+                          thumbTintColor="#5A96FF"
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.settingsRow}>
+                      <Text style={styles.settingsLabel}>底部距离 ({(layoutConfig.bottomOffset * 100).toFixed(0)}%)</Text>
+                      <View style={styles.sliderContainer}>
+                        <Slider
+                          minimumValue={0}
+                          maximumValue={0.3}
+                          step={0.01}
+                          value={layoutConfig.bottomOffset}
+                          onValueChange={(value) =>
+                            setLayoutConfig((prev) => ({ ...prev, preset: 'custom', bottomOffset: value }))
+                          }
+                          minimumTrackTintColor="#5A96FF"
+                          maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
+                          thumbTintColor="#5A96FF"
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.settingsRow}>
+                      <Text style={styles.settingsLabel}>元素间距 ({(layoutConfig.elementGap * 100).toFixed(0)}%)</Text>
+                      <View style={styles.sliderContainer}>
+                        <Slider
+                          minimumValue={0.5}
+                          maximumValue={2.0}
+                          step={0.1}
+                          value={layoutConfig.elementGap}
+                          onValueChange={(value) =>
+                            setLayoutConfig((prev) => ({ ...prev, preset: 'custom', elementGap: value }))
+                          }
+                          minimumTrackTintColor="#5A96FF"
+                          maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
+                          thumbTintColor="#5A96FF"
+                        />
+                      </View>
+                    </View>
+
+                    <TouchButton
+                      onPress={() => setLayoutConfig(getDefaultLayoutConfig())}
+                      style={styles.resetButton}
+                    >
+                      <Text style={styles.resetButtonText}>重置为默认</Text>
+                    </TouchButton>
+                  </>
+                )}
               </ScrollView>
             </View>
           </View>
@@ -1081,5 +1286,47 @@ const styles = StyleSheet.create({
   },
   sliderContainer: {
     flex: 1,
+  },
+  settingsTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabButtonActive: {
+    borderBottomColor: '#5A96FF',
+  },
+  tabText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 14,
+  },
+  tabTextActive: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  sectionTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  resetButton: {
+    marginTop: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 100, 100, 0.3)',
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    color: '#ff6666',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
