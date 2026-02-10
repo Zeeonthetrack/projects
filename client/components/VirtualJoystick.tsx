@@ -84,8 +84,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     return Gesture.Pan()
       .minDistance(0)
       .onBegin((event) => {
-        if (touchId !== undefined && event.pointerId !== touchId) {
-          activeTouchId.value = null;
+        if (activeTouchId.value !== null) {
           return;
         }
         activeTouchId.value = event.pointerId ?? null;
@@ -93,7 +92,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
         cancelAnimation(y);
       })
       .onUpdate((event) => {
-        if (touchId !== undefined && event.pointerId !== activeTouchId.value) {
+        if (activeTouchId.value !== event.pointerId) {
           return;
         }
         const clamped = clampToCircle(event.translationX, event.translationY);
@@ -104,7 +103,10 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
         const value = computeValue(nextY);
         runOnJS(emitValue)(value);
       })
-      .onFinalize(() => {
+      .onFinalize((event) => {
+        if (activeTouchId.value !== null && event.pointerId !== activeTouchId.value) {
+          return;
+        }
         activeTouchId.value = null;
         x.value = withTiming(0, { duration: returnDurationMs });
         y.value = withTiming(0, { duration: returnDurationMs });
@@ -140,14 +142,14 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     height: size,
     borderRadius: baseRadius,
     borderWidth: baseBorderWidth,
-    borderColor: '#a0a0a0',
+    borderColor: 'rgba(200, 200, 200, 0.5)',
   };
   const knobStyle = {
     width: knobRadius * 2,
     height: knobRadius * 2,
     borderRadius: knobRadius,
     borderWidth: knobBorderWidth,
-    borderColor: '#2a5cb8',
+    borderColor: 'rgba(90, 150, 255, 0.9)',
     shadowOffset: { width: 0, height: shadowOffsetY },
     shadowOpacity: 0.3,
     shadowRadius,
@@ -171,12 +173,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   base: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: 'rgba(200, 200, 200, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   knob: {
-    backgroundColor: '#4a90e2',
+    backgroundColor: 'rgba(90, 150, 255, 0.8)',
     position: 'absolute',
     shadowColor: '#000',
   },

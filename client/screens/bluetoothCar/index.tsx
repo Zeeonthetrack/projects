@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Alert, Text, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Alert, Text, useWindowDimensions, Modal, TextInput, Switch, ScrollView } from 'react-native';
+import Slider from '@react-native-community/slider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Screen } from '@/components/Screen';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -28,6 +30,53 @@ import { BluetoothDevice } from '@/utils/bluetoothTypes';
  * - 横屏锁定（已在app.config.ts中配置）
  */
 
+const SETTINGS_STORAGE_KEY = 'bluetoothCarSettings';
+
+type TextEncoding = 'GBK' | 'UTF-8';
+type NewlineFormat = '\r\n' | '\n' | '\r';
+
+interface ControlSettings {
+  textEncoding: TextEncoding;
+  newlineFormat: NewlineFormat;
+  receiveBufferSize: number;
+  sendAreaIntervalMs: number;
+  dataPacketIntervalMs: number;
+  dataPacketAppendNewline: boolean;
+  joystickSensitivity: number;
+}
+
+const defaultSettings: ControlSettings = {
+  textEncoding: 'UTF-8',
+  newlineFormat: '\n',
+  receiveBufferSize: 100,
+  sendAreaIntervalMs: 50,
+  dataPacketIntervalMs: 5,
+  dataPacketAppendNewline: false,
+  joystickSensitivity: 5,
+};
+
+const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const normalizeSettings = (partial?: Partial<ControlSettings>): ControlSettings => {
+  if (!partial) return defaultSettings;
+  const textEncoding = partial.textEncoding === 'GBK' || partial.textEncoding === 'UTF-8'
+    ? partial.textEncoding
+    : defaultSettings.textEncoding;
+  const newlineFormat = partial.newlineFormat === '\r\n' || partial.newlineFormat === '\n' || partial.newlineFormat === '\r'
+    ? partial.newlineFormat
+    : defaultSettings.newlineFormat;
+
+  return {
+    textEncoding,
+    newlineFormat,
+    receiveBufferSize: clampNumber(Number(partial.receiveBufferSize ?? defaultSettings.receiveBufferSize), 10, 500),
+    sendAreaIntervalMs: clampNumber(Number(partial.sendAreaIntervalMs ?? defaultSettings.sendAreaIntervalMs), 1, 100),
+    dataPacketIntervalMs: clampNumber(Number(partial.dataPacketIntervalMs ?? defaultSettings.dataPacketIntervalMs), 1, 20),
+    dataPacketAppendNewline: Boolean(partial.dataPacketAppendNewline),
+    joystickSensitivity: clampNumber(Number(partial.joystickSensitivity ?? defaultSettings.joystickSensitivity), 1, 10),
+  };
+};
+
 export default function BluetoothCarScreen() {
   // ==================== 状态变量声明 ====================
   // 相当于C语言的: int leftJoystickValue = 127;
@@ -45,6 +94,10 @@ export default function BluetoothCarScreen() {
   // 调试日志状态
   const [isLogCollapsed, setIsLogCollapsed] = useState(true);
   const [packets, setPackets] = useState<string[]>([]);
+
+  // 设置相关状态
+  const [settings, setSettings] = useState<ControlSettings>(defaultSettings);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // 定时器引用（用于5ms周期发送）
   const sendDataTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -133,20 +186,29 @@ export default function BluetoothCarScreen() {
     try {
       // 创建数据包
       const packet = createDataPacket(controlData);
+      const newlineBytes = settings.newlineFormat === '\r\n'
+        ? [0x0d, 0x0a]
+        : settings.newlineFormat === '\n'
+          ? [0x0a]
+          : [0x0d];
+      const finalPacket = settings.dataPacketAppendNewline
+        ? new Uint8Array([...packet, ...newlineBytes])
+        : packet;
       
       // 格式化为十六进制字符串（用于日志）
-      const hexString = formatPacketHex(packet);
+      const hexString = formatPacketHex(finalPacket);
       
-      // 添加到日志
-      setPackets(prev => [...prev.slice(-199), hexString]);
+      // 添加到日志（受缓存大小控制）
+      const bufferSize = clampNumber(settings.receiveBufferSize, 10, 500);
+      setPackets(prev => [...prev.slice(-(bufferSize - 1)), hexString]);
       
       // 发送数据
-      await bluetoothManager.sendData(packet);
+      await bluetoothManager.sendData(finalPacket);
       
     } catch (error) {
       console.error('[数据发送] 发送失败:', error);
     }
-  }, [isConnected, controlData, bluetoothManager]);
+  }, [isConnected, controlData, bluetoothManager, settings.receiveBufferSize, settings.dataPacketAppendNewline, settings.newlineFormat]);
 
   /**
    * 启动数据发送定时器（5ms周期）
@@ -160,10 +222,10 @@ export default function BluetoothCarScreen() {
   const startDataSending = useCallback(() => {
     sendDataTimer.current = setInterval(() => {
       sendDataPacket();
-    }, 5);
+    }, settings.dataPacketIntervalMs);
 
-    console.log('[数据发送] 已启动，周期：5ms');
-  }, [sendDataPacket]);
+    console.log(`[数据发送] 已启动，周期：${settings.dataPacketIntervalMs}ms`);
+  }, [sendDataPacket, settings.dataPacketIntervalMs]);
 
   /**
    * 停止数据发送定时器
@@ -334,24 +396,57 @@ export default function BluetoothCarScreen() {
     };
   }, [stopDataSending, bluetoothManager]);
 
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored) as Partial<ControlSettings>;
+          setSettings(normalizeSettings(parsed));
+        }
+      } catch (error) {
+        console.warn('[设置] 读取失败，使用默认值', error);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings)).catch((error) => {
+      console.warn('[设置] 保存失败', error);
+    });
+  }, [settings]);
+
+  useEffect(() => {
+    if (isConnected) {
+      stopDataSending();
+      startDataSending();
+    }
+  }, [isConnected, settings.dataPacketIntervalMs, startDataSending, stopDataSending]);
+
   const { width, height } = useWindowDimensions();
   const screenWidth = Math.max(width, height);
   const screenHeight = Math.min(width, height);
 
   const layout = useMemo(() => {
-    const joystickSize = screenWidth * 0.22;
-    const buttonSize = screenWidth * 0.09;
-    const buttonGap = screenWidth * 0.02;
+    const baseJoystickSize = screenWidth * 0.25;
+    const baseButtonSize = screenWidth * 0.1;
+    const baseGap = screenWidth * 0.05;
+    const totalRowWidth = baseJoystickSize * 2 + baseButtonSize * 4 + baseGap * 5;
+    const scale = Math.min(1, screenWidth / totalRowWidth);
+    const joystickSize = baseJoystickSize * scale;
+    const buttonSize = baseButtonSize * scale;
+    const buttonGap = baseGap * scale;
+    const controlGap = baseGap * scale;
     const bottomOffset = screenHeight * 0.06;
-    const rowWidth = buttonSize * 4 + buttonGap * 3;
+    const rowWidth = joystickSize * 2 + buttonSize * 4 + buttonGap * 3 + controlGap * 2;
     const rowLeft = Math.max(0, (screenWidth - rowWidth) / 2);
-    const joystickLeft = screenWidth * 0.1 - joystickSize / 2;
-    const joystickRight = screenWidth * 0.1 - joystickSize / 2;
-    const rowBottom = bottomOffset + Math.max(0, (joystickSize - buttonSize) / 2);
     const headerTop = screenHeight * 0.03;
     const headerSide = screenWidth * 0.02;
+    const headerHeight = screenHeight * 0.12;
     const headerPaddingX = screenWidth * 0.02;
-    const headerPaddingY = screenHeight * 0.015;
+    const headerPaddingY = screenHeight * 0.01;
     const headerRadius = screenWidth * 0.015;
     const headerGap = screenWidth * 0.015;
     const buttonPaddingX = screenWidth * 0.014;
@@ -359,6 +454,11 @@ export default function BluetoothCarScreen() {
     const buttonRadius = screenWidth * 0.012;
     const buttonTextSize = screenWidth * 0.015;
     const joystickLabelGap = screenHeight * 0.01;
+    const joystickValueSize = screenWidth * 0.04;
+    const buttonLabelSize = screenWidth * 0.04;
+    const settingsButtonSize = headerHeight * 0.8;
+    const modalWidth = screenWidth * 0.7;
+    const modalHeight = screenHeight * 0.7;
     const rootPaddingX = screenWidth * 0.02;
     const rootPaddingY = screenHeight * 0.02;
 
@@ -366,14 +466,13 @@ export default function BluetoothCarScreen() {
       joystickSize,
       buttonSize,
       buttonGap,
+      controlGap,
       bottomOffset,
       rowWidth,
       rowLeft,
-      joystickLeft,
-      joystickRight,
-      rowBottom,
       headerTop,
       headerSide,
+      headerHeight,
       headerPaddingX,
       headerPaddingY,
       headerRadius,
@@ -383,10 +482,36 @@ export default function BluetoothCarScreen() {
       buttonRadius,
       buttonTextSize,
       joystickLabelGap,
+      joystickValueSize,
+      buttonLabelSize,
+      settingsButtonSize,
+      modalWidth,
+      modalHeight,
       rootPaddingX,
       rootPaddingY,
     };
   }, [screenHeight, screenWidth]);
+
+  const joystickSmoothing = useMemo(() => {
+    const min = 0.08;
+    const max = 0.5;
+    const factor = (clampNumber(settings.joystickSensitivity, 1, 10) - 1) / 9;
+    return min + (max - min) * factor;
+  }, [settings.joystickSensitivity]);
+
+  const updateNumberSetting = useCallback(
+    (key: keyof ControlSettings, value: string, min: number, max: number) => {
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) {
+        return;
+      }
+      setSettings((prev) => ({
+        ...prev,
+        [key]: clampNumber(Math.round(numeric), min, max),
+      }));
+    },
+    []
+  );
 
   return (
     <Screen backgroundColor="#1a1a2e" statusBarStyle="light" safeAreaEdges={['left', 'right']}>
@@ -408,14 +533,33 @@ export default function BluetoothCarScreen() {
               top: layout.headerTop,
               left: layout.headerSide,
               right: layout.headerSide,
+              height: layout.headerHeight,
               paddingHorizontal: layout.headerPaddingX,
               paddingVertical: layout.headerPaddingY,
               borderRadius: layout.headerRadius,
             },
           ]}
         >
-          <ThemedText variant="h3" color="#ffffff">🚗 蓝牙遥控小车</ThemedText>
-          <View style={[styles.bluetoothControls, { gap: layout.headerGap }]}>
+          <View style={styles.headerColumnLeft}>
+            <TouchButton
+              onPress={() => setIsSettingsOpen(true)}
+              style={[
+                styles.settingsButton,
+                {
+                  width: layout.settingsButtonSize,
+                  height: layout.settingsButtonSize,
+                  borderRadius: layout.settingsButtonSize / 2,
+                },
+              ]}
+            >
+              <Text style={[styles.settingsButtonText, { fontSize: layout.settingsButtonSize * 0.5 }]}>⚙️</Text>
+            </TouchButton>
+          </View>
+          <View style={styles.headerColumnCenter}>
+            <ThemedText variant="h3" color="#ffffff">🚗 蓝牙遥控小车</ThemedText>
+          </View>
+          <View style={[styles.headerColumnRight, { gap: layout.headerGap }]}
+          >
             {!isConnected ? (
               <TouchButton
                 onPress={scanDevices}
@@ -458,107 +602,234 @@ export default function BluetoothCarScreen() {
 
         <View
           style={[
-            styles.joystickWrapper,
-            {
-              left: layout.joystickLeft,
-              bottom: layout.bottomOffset,
-              width: layout.joystickSize,
-              height: layout.joystickSize,
-            },
-          ]}
-        >
-          <ThemedText
-            variant="small"
-            color="#ffffff"
-            style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap }]}
-          >
-            左摇杆: {controlData.leftJoystick}
-          </ThemedText>
-          <VirtualJoystick
-            onChange={(value) => handleJoystickChange('left', value)}
-            size={layout.joystickSize}
-            debounceThreshold={1}
-            smoothing={0.1}
-            returnDurationMs={50}
-            touchId={0}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.joystickWrapper,
-            {
-              right: layout.joystickRight,
-              bottom: layout.bottomOffset,
-              width: layout.joystickSize,
-              height: layout.joystickSize,
-            },
-          ]}
-        >
-          <ThemedText
-            variant="small"
-            color="#ffffff"
-            style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap }]}
-          >
-            右摇杆: {controlData.rightJoystick}
-          </ThemedText>
-          <VirtualJoystick
-            onChange={(value) => handleJoystickChange('right', value)}
-            size={layout.joystickSize}
-            debounceThreshold={1}
-            smoothing={0.1}
-            returnDurationMs={50}
-            touchId={1}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.buttonRow,
+            styles.controlRow,
             {
               left: layout.rowLeft,
-              bottom: layout.rowBottom,
+              bottom: layout.bottomOffset,
               width: layout.rowWidth,
-              height: layout.buttonSize,
             },
           ]}
         >
-          <FunctionButton
-            type="red"
-            label="红灯"
-            onPress={(value) => handleButtonPress('red', value)}
-            onRelease={(value) => handleButtonRelease('red', value)}
-            size={layout.buttonSize}
-            style={{ marginRight: layout.buttonGap }}
-            touchId={2}
-          />
-          <FunctionButton
-            type="blue"
-            label="蓝灯"
-            onPress={(value) => handleButtonPress('blue', value)}
-            onRelease={(value) => handleButtonRelease('blue', value)}
-            size={layout.buttonSize}
-            style={{ marginRight: layout.buttonGap }}
-            touchId={3}
-          />
-          <FunctionButton
-            type="green"
-            label="绿灯"
-            onPress={(value) => handleButtonPress('green', value)}
-            onRelease={(value) => handleButtonRelease('green', value)}
-            size={layout.buttonSize}
-            style={{ marginRight: layout.buttonGap }}
-            touchId={4}
-          />
-          <FunctionButton
-            type="yellow"
-            label="黄灯"
-            onPress={(value) => handleButtonPress('yellow', value)}
-            onRelease={(value) => handleButtonRelease('yellow', value)}
-            size={layout.buttonSize}
-            touchId={5}
-          />
+          <View style={[styles.joystickWrapper, { width: layout.joystickSize }]}>
+            <ThemedText
+              variant="small"
+              color="#ffffff"
+              style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap, fontSize: layout.joystickValueSize }]}
+            >
+              左摇杆: {controlData.leftJoystick}
+            </ThemedText>
+            <VirtualJoystick
+              onChange={(value) => handleJoystickChange('left', value)}
+              size={layout.joystickSize}
+              debounceThreshold={1}
+              smoothing={joystickSmoothing}
+              returnDurationMs={50}
+              touchId={0}
+            />
+          </View>
+
+          <View style={[styles.buttonRow, { marginHorizontal: layout.controlGap }]}>
+            <FunctionButton
+              type="red"
+              label="红灯"
+              onPress={(value) => handleButtonPress('red', value)}
+              onRelease={(value) => handleButtonRelease('red', value)}
+              size={layout.buttonSize}
+              labelSize={layout.buttonLabelSize}
+              style={{ marginRight: layout.buttonGap }}
+              touchId={2}
+            />
+            <FunctionButton
+              type="blue"
+              label="蓝灯"
+              onPress={(value) => handleButtonPress('blue', value)}
+              onRelease={(value) => handleButtonRelease('blue', value)}
+              size={layout.buttonSize}
+              labelSize={layout.buttonLabelSize}
+              style={{ marginRight: layout.buttonGap }}
+              touchId={3}
+            />
+            <FunctionButton
+              type="green"
+              label="绿灯"
+              onPress={(value) => handleButtonPress('green', value)}
+              onRelease={(value) => handleButtonRelease('green', value)}
+              size={layout.buttonSize}
+              labelSize={layout.buttonLabelSize}
+              style={{ marginRight: layout.buttonGap }}
+              touchId={4}
+            />
+            <FunctionButton
+              type="yellow"
+              label="黄灯"
+              onPress={(value) => handleButtonPress('yellow', value)}
+              onRelease={(value) => handleButtonRelease('yellow', value)}
+              size={layout.buttonSize}
+              labelSize={layout.buttonLabelSize}
+              touchId={5}
+            />
+          </View>
+
+          <View style={[styles.joystickWrapper, { width: layout.joystickSize }]}>
+            <ThemedText
+              variant="small"
+              color="#ffffff"
+              style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap, fontSize: layout.joystickValueSize }]}
+            >
+              右摇杆: {controlData.rightJoystick}
+            </ThemedText>
+            <VirtualJoystick
+              onChange={(value) => handleJoystickChange('right', value)}
+              size={layout.joystickSize}
+              debounceThreshold={1}
+              smoothing={joystickSmoothing}
+              returnDurationMs={50}
+              touchId={1}
+            />
+          </View>
         </View>
+
+        <Modal
+          transparent
+          visible={isSettingsOpen}
+          animationType="fade"
+          onRequestClose={() => setIsSettingsOpen(false)}
+        >
+          <View style={styles.settingsOverlay}>
+            <View
+              style={[
+                styles.settingsModal,
+                {
+                  width: layout.modalWidth,
+                  maxHeight: layout.modalHeight,
+                  borderRadius: layout.headerRadius,
+                },
+              ]}
+            >
+              <View style={styles.settingsHeader}>
+                <Text style={styles.settingsTitle}>⚙️ 设置</Text>
+                <TouchButton onPress={() => setIsSettingsOpen(false)} style={styles.settingsCloseButton}>
+                  <Text style={styles.settingsCloseText}>关闭</Text>
+                </TouchButton>
+              </View>
+
+              <ScrollView style={styles.settingsBody} contentContainerStyle={styles.settingsBodyContent}>
+                <View style={styles.settingsRow}>
+                  <Text style={styles.settingsLabel}>文本编码</Text>
+                  <View style={styles.settingsOptions}>
+                    <TouchButton
+                      onPress={() => setSettings((prev) => ({ ...prev, textEncoding: 'GBK' }))}
+                      style={[
+                        styles.optionButton,
+                        settings.textEncoding === 'GBK' ? styles.optionButtonActive : null,
+                      ]}
+                    >
+                      <Text style={styles.optionText}>GBK</Text>
+                    </TouchButton>
+                    <TouchButton
+                      onPress={() => setSettings((prev) => ({ ...prev, textEncoding: 'UTF-8' }))}
+                      style={[
+                        styles.optionButton,
+                        settings.textEncoding === 'UTF-8' ? styles.optionButtonActive : null,
+                      ]}
+                    >
+                      <Text style={styles.optionText}>UTF-8</Text>
+                    </TouchButton>
+                  </View>
+                </View>
+
+                <View style={styles.settingsRow}>
+                  <Text style={styles.settingsLabel}>换行格式</Text>
+                  <View style={styles.settingsOptions}>
+                    <TouchButton
+                      onPress={() => setSettings((prev) => ({ ...prev, newlineFormat: '\r\n' }))}
+                      style={[
+                        styles.optionButton,
+                        settings.newlineFormat === '\r\n' ? styles.optionButtonActive : null,
+                      ]}
+                    >
+                      <Text style={styles.optionText}>\r\n</Text>
+                    </TouchButton>
+                    <TouchButton
+                      onPress={() => setSettings((prev) => ({ ...prev, newlineFormat: '\n' }))}
+                      style={[
+                        styles.optionButton,
+                        settings.newlineFormat === '\n' ? styles.optionButtonActive : null,
+                      ]}
+                    >
+                      <Text style={styles.optionText}>\n</Text>
+                    </TouchButton>
+                    <TouchButton
+                      onPress={() => setSettings((prev) => ({ ...prev, newlineFormat: '\r' }))}
+                      style={[
+                        styles.optionButton,
+                        settings.newlineFormat === '\r' ? styles.optionButtonActive : null,
+                      ]}
+                    >
+                      <Text style={styles.optionText}>\r</Text>
+                    </TouchButton>
+                  </View>
+                </View>
+
+                <View style={styles.settingsRow}>
+                  <Text style={styles.settingsLabel}>接收区缓存大小</Text>
+                  <TextInput
+                    value={String(settings.receiveBufferSize)}
+                    onChangeText={(text) => updateNumberSetting('receiveBufferSize', text, 10, 500)}
+                    keyboardType="number-pad"
+                    style={styles.settingsInput}
+                  />
+                </View>
+
+                <View style={styles.settingsRow}>
+                  <Text style={styles.settingsLabel}>发送区发送间隔 (ms)</Text>
+                  <TextInput
+                    value={String(settings.sendAreaIntervalMs)}
+                    onChangeText={(text) => updateNumberSetting('sendAreaIntervalMs', text, 1, 100)}
+                    keyboardType="number-pad"
+                    style={styles.settingsInput}
+                  />
+                </View>
+
+                <View style={styles.settingsRow}>
+                  <Text style={styles.settingsLabel}>数据包发送间隔 (ms)</Text>
+                  <TextInput
+                    value={String(settings.dataPacketIntervalMs)}
+                    onChangeText={(text) => updateNumberSetting('dataPacketIntervalMs', text, 1, 20)}
+                    keyboardType="number-pad"
+                    style={styles.settingsInput}
+                  />
+                </View>
+
+                <View style={styles.settingsRow}>
+                  <Text style={styles.settingsLabel}>数据包末尾换行</Text>
+                  <Switch
+                    value={settings.dataPacketAppendNewline}
+                    onValueChange={(value) => setSettings((prev) => ({ ...prev, dataPacketAppendNewline: value }))}
+                  />
+                </View>
+
+                <View style={styles.settingsRow}>
+                  <Text style={styles.settingsLabel}>摇杆灵敏度 ({settings.joystickSensitivity})</Text>
+                  <View style={styles.sliderContainer}>
+                    <Slider
+                      minimumValue={1}
+                      maximumValue={10}
+                      step={1}
+                      value={settings.joystickSensitivity}
+                      onValueChange={(value) =>
+                        setSettings((prev) => ({ ...prev, joystickSensitivity: Math.round(value) }))
+                      }
+                      minimumTrackTintColor="#5A96FF"
+                      maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
+                      thumbTintColor="#5A96FF"
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         <DebugLog
           isCollapsed={isLogCollapsed}
@@ -579,9 +850,32 @@ const styles = StyleSheet.create({
   header: {
     position: 'absolute',
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  headerColumnLeft: {
+    width: '20%',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  headerColumnCenter: {
+    width: '60%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerColumnRight: {
+    width: '20%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  settingsButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  settingsButtonText: {
+    color: '#ffffff',
   },
   bluetoothControls: {
     flexDirection: 'row',
@@ -601,15 +895,94 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
   },
-  joystickWrapper: {
+  controlRow: {
     position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  joystickWrapper: {
     alignItems: 'center',
   },
   joystickLabel: {
   },
   buttonRow: {
-    position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  settingsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingsModal: {
+    backgroundColor: '#1e1e2e',
+    padding: 16,
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  settingsTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  settingsCloseButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 8,
+  },
+  settingsCloseText: {
+    color: '#ffffff',
+  },
+  settingsBody: {
+    flexGrow: 0,
+  },
+  settingsBodyContent: {
+    gap: 12,
+    paddingBottom: 6,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settingsLabel: {
+    color: '#ffffff',
+    flex: 1,
+  },
+  settingsOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  optionButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  optionButtonActive: {
+    backgroundColor: 'rgba(90, 150, 255, 0.6)',
+  },
+  optionText: {
+    color: '#ffffff',
+  },
+  settingsInput: {
+    minWidth: 90,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  sliderContainer: {
+    flex: 1,
   },
 });

@@ -32,6 +32,7 @@ interface FunctionButtonProps {
   onRelease: (value: number) => void;  // 松开回调函数（传递状态值）
   label: string;                       // 按键标签文字
   size?: number;                       // 按键尺寸（默认80）
+  labelSize?: number;                  // 标签字号（默认按尺寸缩放）
   style?: ViewStyle;                   // 自定义样式
   touchId?: number;                    // 触摸ID
 }
@@ -42,6 +43,7 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
   onRelease,
   label,
   size = 80,
+  labelSize,
   style,
   touchId,
 }) => {
@@ -181,7 +183,7 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
           style={[
             styles.label,
             {
-              fontSize: size * 0.18,
+              fontSize: labelSize ?? size * 0.18,
             },
             labelStyle,
           ]}
@@ -206,8 +208,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    color: '#000',
+    color: '#FFFFFF',
     fontWeight: 'bold',
     textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
   },
 });
