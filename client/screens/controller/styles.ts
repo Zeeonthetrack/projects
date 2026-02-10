@@ -8,7 +8,8 @@ export const createStyles = (theme: Theme) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      padding: Spacing.lg,
+      padding: Spacing.sm,
+      paddingTop: Spacing.md,
     },
     
     // 顶部标题区域
@@ -16,7 +17,8 @@ export const createStyles = (theme: Theme) => {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: Spacing.xl,
+      marginBottom: Spacing.md,
+      paddingHorizontal: Spacing.sm,
     },
     
     statusRow: {
@@ -24,31 +26,34 @@ export const createStyles = (theme: Theme) => {
       alignItems: 'center',
     },
     
-    // 摇杆容器
+    // 摇杆容器 - 优化间距，更协调的布局
     joystickContainer: {
       flexDirection: 'row',
       justifyContent: 'space-around',
       alignItems: 'center',
-      marginBottom: Spacing.xl,
-      paddingHorizontal: Spacing.xl,
+      marginBottom: Spacing.lg + 4,
+      paddingHorizontal: Spacing.xs,
     },
     
-    // 功能按键容器
+    // 功能按键容器 - 优化间距，紧凑排列
     buttonContainer: {
       flexDirection: 'row',
-      justifyContent: 'space-around',
+      justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: Spacing.xl,
-      paddingHorizontal: Spacing.lg,
+      marginBottom: Spacing.lg,
+      paddingHorizontal: Spacing.sm,
+      gap: 16,  // 按钮之间16像素间距
+      flexWrap: 'wrap',  // 允许换行以适应小屏幕
     },
     
-    // 蓝牙控制区域
+    // 蓝牙控制区域 - 优化布局
     bluetoothContainer: {
       backgroundColor: theme.backgroundDefault,
       borderRadius: BorderRadius.lg,
-      padding: Spacing.lg,
-      marginBottom: Spacing.md,
-      minHeight: 80,
+      padding: Spacing.md,
+      marginBottom: Spacing.sm,
+      marginHorizontal: Spacing.sm,
+      minHeight: 70,
       alignItems: 'center',
       justifyContent: 'center',
     },

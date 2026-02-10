@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { View, PanResponder, StyleSheet, Text } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { createStyles } from './styles';
@@ -39,35 +39,33 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
     if (touchId === 1) return '右摇杆';
     return '摇杆';
   };
-
-  const matchesTouchId = (identifier?: number | null) => {
-    // 每个摇杆独立处理自己的触摸，无需检查ID匹配
-    return true;
-  };
   
   /**
    * PanResponder 处理触摸手势
-   * 类似于C语言中的触摸事件处理函数
+   * 支持多点触控：每个摇杆独立处理自己的触摸事件
    */
   const panResponder = useRef(
     PanResponder.create({
-      // 允许响应手势（支持多点触摸）
-      onStartShouldSetPanResponder: (evt) =>
-        matchesTouchId(evt.nativeEvent.identifier),
-      onMoveShouldSetPanResponder: (evt) =>
-        matchesTouchId(evt.nativeEvent.identifier),
+      // 允许响应手势：只有当前摇杆空闲时才接受新触摸
+      onStartShouldSetPanResponder: () => activeTouchIdRef.current === null,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: () => false,
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => false,
       
       // 触摸开始
       onPanResponderGrant: (evt) => {
-        if (!matchesTouchId(evt.nativeEvent.identifier)) {
+        // 双重检查：确保当前没有活动触摸
+        if (activeTouchIdRef.current !== null) {
           return;
         }
-        // 始终接受新的触摸（支持多点触摸）
+        // 记录触摸ID
         activeTouchIdRef.current = evt.nativeEvent.identifier ?? null;
       },
       
       // 触摸移动（核心逻辑）
       onPanResponderMove: (event, gestureState) => {
+        // 验证触摸ID匹配
         if (event.nativeEvent.identifier !== activeTouchIdRef.current) {
           return;
         }
@@ -141,6 +139,3 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
     </View>
   );
 }
-
-// 必须导入useMemo
-import { useMemo } from 'react';

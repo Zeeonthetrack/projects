@@ -78,9 +78,10 @@ export function ControlButton({
     [onPressIn, onPressOut]
   );
 
+  // 按钮尺寸可以通过size参数调整
   const dynamicStyle: ViewStyle = {
     width: size,
-    height: Math.round(size * 0.66),
+    height: size,
   };
 
   return (
@@ -91,18 +92,15 @@ export function ControlButton({
         style,
         {
           backgroundColor: colors.bg,
-          shadowOpacity: isPressed ? 0.4 : 0.2,
-          shadowOffset: isPressed ? { width: 0, height: 2 } : { width: 0, height: 4 },
-          transform: [{ scale: isPressed ? 0.95 : 1 }],
+          shadowOpacity: isPressed ? 0.2 : 0.35,
+          shadowOffset: isPressed ? { width: 0, height: 2 } : { width: 0, height: 6 },
+          shadowRadius: isPressed ? 6 : 10,
+          elevation: isPressed ? 4 : 10,
+          transform: [{ scale: isPressed ? 0.88 : 1 }],
+          borderColor: isPressed ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.3)',
         },
       ]}
       {...panResponder.panHandlers}
-    >
-      <Text style={[styles.buttonText, { color: colors.text }]}>
-        {label}
-      </Text>
-    </View>
+    />
   );
 }
-
-// 必须导入useMemo

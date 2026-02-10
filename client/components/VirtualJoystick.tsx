@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
 import { ThemedView } from '@/components/ThemedView';
 
@@ -96,12 +97,17 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
       .minDistance(0)
       .onBegin((event) => {
         const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        // 只有当前摇杆空闲时才接受新触摸
+        if (activeTouchId.value !== null) {
+          return;
+        }
         activeTouchId.value = pointerId;
         cancelAnimation(x);
         cancelAnimation(y);
       })
       .onUpdate((event) => {
         const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        // 验证触摸ID匹配
         if (activeTouchId.value !== pointerId) {
           return;
         }
@@ -119,8 +125,15 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
           return;
         }
         activeTouchId.value = null;
-        x.value = withTiming(0, { duration: returnDurationMs });
-        y.value = withTiming(0, { duration: returnDurationMs });
+        // 平滑回弹动画，使用弹性缓动
+        x.value = withTiming(0, { 
+          duration: returnDurationMs, 
+          easing: Easing.out(Easing.cubic),
+        });
+        y.value = withTiming(0, { 
+          duration: returnDurationMs, 
+          easing: Easing.out(Easing.cubic),
+        });
         runOnJS(emitValue)(neutralValue);
       });
   }, [
@@ -139,9 +152,28 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     y,
   ]);
 
-  const knobAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { translateY: y.value }],
-  }));
+  const knobAnimatedStyle = useAnimatedStyle(() => {
+    // 计算拖动距离，用于调整颜色
+    const distance = Math.sqrt(x.value * x.value + y.value * y.value);
+    const progress = Math.min(1, distance / maxOffset);
+    
+    // 拖动时颜色变浅变亮，模拟手游摇杆效果
+    // 静止时：#42A5F5 (纯蓝)
+    // 拖动时：逐渐变亮到 #7BC4F7
+    const baseR = 66, baseG = 165, baseB = 245;
+    const targetR = 123, targetG = 196, targetB = 247;
+    
+    const r = Math.round(baseR + (targetR - baseR) * progress);
+    const g = Math.round(baseG + (targetG - baseG) * progress);
+    const b = Math.round(baseB + (targetB - baseB) * progress);
+    
+    const backgroundColor = `rgb(${r}, ${g}, ${b})`;
+    
+    return {
+      transform: [{ translateX: x.value }, { translateY: y.value }],
+      backgroundColor,
+    };
+  });
 
   const baseBorderWidth = size * 0.012;
   const knobBorderWidth = size * 0.018;
@@ -154,16 +186,16 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     height: size,
     borderRadius: baseRadius,
     borderWidth: baseBorderWidth,
-    borderColor: 'rgba(200, 200, 200, 0.5)',
+    borderColor: 'rgba(80, 80, 80, 0.6)',
   };
   const knobStyle = {
     width: knobRadius * 2,
     height: knobRadius * 2,
     borderRadius: knobRadius,
     borderWidth: knobBorderWidth,
-    borderColor: 'rgba(90, 150, 255, 0.9)',
+    borderColor: 'rgba(66, 165, 245, 0.6)',
     shadowOffset: { width: 0, height: shadowOffsetY },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.5,
     shadowRadius,
     elevation,
   };
@@ -185,12 +217,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   base: {
-    backgroundColor: 'rgba(200, 200, 200, 0.3)',
+    backgroundColor: 'rgba(50, 50, 50, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   knob: {
-    backgroundColor: 'rgba(90, 150, 255, 0.8)',
+    backgroundColor: '#42A5F5',
     position: 'absolute',
     shadowColor: '#000',
   },
