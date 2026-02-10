@@ -713,6 +713,25 @@ export default function BluetoothCarScreen() {
   }, []);
 
   /**
+   * 获取元素的实际位置和大小（百分比转像素）
+   */
+  const getElementStyle = useCallback(
+    (elementId: string) => {
+      const element = layoutElements.find(el => el.id === elementId);
+      if (!element) return {};
+
+      return {
+        position: 'absolute' as const,
+        left: `${element.x}%`,
+        top: `${element.y}%`,
+        width: `${element.width}%`,
+        height: `${element.height}%`,
+      };
+    },
+    [layoutElements]
+  );
+
+  /**
    * 退出编辑模式并保存
    */
   const handleExitLayoutEditing = useCallback(async () => {
@@ -857,107 +876,171 @@ export default function BluetoothCarScreen() {
           </View>
         </View>
 
-        <View
-          style={[
-            styles.packetPanel,
-            {
-              top: layout.packetTop,
-              left: layout.packetLeft,
-              width: layout.packetWidth,
-              paddingVertical: layout.packetPaddingY,
-              paddingHorizontal: layout.packetPaddingX,
-              borderRadius: layout.packetRadius,
-            },
-          ]}
-        >
-          <ThemedText variant="caption" color="rgba(255,255,255,0.65)" style={styles.packetLabel}>
-            当前数据包 (8字节)
-          </ThemedText>
-          <ThemedText variant="h4" color="#5A96FF" style={styles.packetValue}>
-            {currentPacket}
-          </ThemedText>
-          <ThemedText variant="caption" color="rgba(255,255,255,0.45)" style={styles.packetLegend}>
-            左轮 右轮 红灯 蓝灯 绿灯 黄灯 校验1 校验2
-          </ThemedText>
-        </View>
+        {/* 动态布局相关元素 */}
+        <View style={{ position: 'absolute', width: '100%', height: '100%' }} pointerEvents="box-none">
+          {/* 根据 layoutElements 动态渲染元素 */}
+          {layoutElements.map((element) => {
+            switch (element.type) {
+              case 'joystick':
+                if (element.id === 'joystick-left') {
+                  return (
+                    <View
+                      key={element.id}
+                      pointerEvents="auto"
+                      style={[
+                        {
+                          position: 'absolute',
+                          left: `${element.x}%`,
+                          top: `${element.y}%`,
+                          width: `${element.width}%`,
+                          height: `${element.height}%`,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        },
+                      ]}
+                    >
+                      <VirtualJoystick
+                        onChange={(value) => handleJoystickChange('left', value)}
+                        size={screenWidth * (element.width / 100)}
+                        debounceThreshold={1}
+                        smoothing={joystickSmoothing}
+                        responseCurve={joystickResponseCurve}
+                        deadZone={joystickDeadZone}
+                        returnDurationMs={50}
+                        touchId={0}
+                      />
+                    </View>
+                  );
+                } else if (element.id === 'joystick-right') {
+                  return (
+                    <View
+                      key={element.id}
+                      pointerEvents="auto"
+                      style={[
+                        {
+                          position: 'absolute',
+                          left: `${element.x}%`,
+                          top: `${element.y}%`,
+                          width: `${element.width}%`,
+                          height: `${element.height}%`,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        },
+                      ]}
+                    >
+                      <VirtualJoystick
+                        onChange={(value) => handleJoystickChange('right', value)}
+                        size={screenWidth * (element.width / 100)}
+                        debounceThreshold={1}
+                        smoothing={joystickSmoothing}
+                        responseCurve={joystickResponseCurve}
+                        deadZone={joystickDeadZone}
+                        returnDurationMs={50}
+                        touchId={1}
+                      />
+                    </View>
+                  );
+                }
+                break;
 
-        <View
-          style={[
-            styles.controlRow,
-            {
-              left: layout.rowLeft,
-              bottom: layout.bottomOffset,
-              width: layout.rowWidth,
-            },
-          ]}
-        >
-          <View style={[styles.joystickWrapper, { width: layout.joystickSize }]}>
-            <VirtualJoystick
-              onChange={(value) => handleJoystickChange('left', value)}
-              size={layout.joystickSize}
-              debounceThreshold={1}
-              smoothing={joystickSmoothing}
-              responseCurve={joystickResponseCurve}
-              deadZone={joystickDeadZone}
-              returnDurationMs={50}
-              touchId={0}
-            />
-          </View>
+              case 'button':
+                const buttonConfig: Record<string, { type: any; label: string; touchId: number }> = {
+                  'button-red': { type: 'red', label: '红灯', touchId: 2 },
+                  'button-blue': { type: 'blue', label: '蓝灯', touchId: 3 },
+                  'button-green': { type: 'green', label: '绿灯', touchId: 4 },
+                  'button-yellow': { type: 'yellow', label: '黄灯', touchId: 5 },
+                };
+                const btnConfig = buttonConfig[element.id];
+                if (btnConfig) {
+                  return (
+                    <View
+                      key={element.id}
+                      pointerEvents="auto"
+                      style={[
+                        {
+                          position: 'absolute',
+                          left: `${element.x}%`,
+                          top: `${element.y}%`,
+                          width: `${element.width}%`,
+                          height: `${element.height}%`,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        },
+                      ]}
+                    >
+                      <FunctionButton
+                        type={btnConfig.type}
+                        label={btnConfig.label}
+                        onPress={(value) => handleButtonPress(btnConfig.type, value)}
+                        onRelease={(value) => handleButtonRelease(btnConfig.type, value)}
+                        size={screenHeight * (element.height / 100)}
+                        labelSize={screenHeight * (element.height / 100) * 0.4}
+                        touchId={btnConfig.touchId}
+                      />
+                    </View>
+                  );
+                }
+                break;
 
-          <View style={[styles.buttonRow, { marginHorizontal: layout.controlGap }]}>
-            <FunctionButton
-              type="red"
-              label="红灯"
-              onPress={(value) => handleButtonPress('red', value)}
-              onRelease={(value) => handleButtonRelease('red', value)}
-              size={layout.buttonSize}
-              labelSize={layout.buttonLabelSize}
-              style={{ marginRight: layout.buttonGap }}
-              touchId={2}
-            />
-            <FunctionButton
-              type="blue"
-              label="蓝灯"
-              onPress={(value) => handleButtonPress('blue', value)}
-              onRelease={(value) => handleButtonRelease('blue', value)}
-              size={layout.buttonSize}
-              labelSize={layout.buttonLabelSize}
-              style={{ marginRight: layout.buttonGap }}
-              touchId={3}
-            />
-            <FunctionButton
-              type="green"
-              label="绿灯"
-              onPress={(value) => handleButtonPress('green', value)}
-              onRelease={(value) => handleButtonRelease('green', value)}
-              size={layout.buttonSize}
-              labelSize={layout.buttonLabelSize}
-              style={{ marginRight: layout.buttonGap }}
-              touchId={4}
-            />
-            <FunctionButton
-              type="yellow"
-              label="黄灯"
-              onPress={(value) => handleButtonPress('yellow', value)}
-              onRelease={(value) => handleButtonRelease('yellow', value)}
-              size={layout.buttonSize}
-              labelSize={layout.buttonLabelSize}
-              touchId={5}
-            />
-          </View>
+              case 'packet':
+                return (
+                  <View
+                    key={element.id}
+                    pointerEvents="auto"
+                    style={[
+                      styles.packetPanel,
+                      {
+                        position: 'absolute',
+                        left: `${element.x}%`,
+                        top: `${element.y}%`,
+                        width: `${element.width}%`,
+                        height: `${element.height}%`,
+                        padding: screenHeight * (element.height / 100) * 0.1,
+                      },
+                    ]}
+                  >
+                    <ThemedText variant="caption" color="rgba(255,255,255,0.65)" style={styles.packetLabel}>
+                      当前数据包 (8字节)
+                    </ThemedText>
+                    <ThemedText variant="h4" color="#5A96FF" style={styles.packetValue}>
+                      {currentPacket}
+                    </ThemedText>
+                    <ThemedText variant="caption" color="rgba(255,255,255,0.45)" style={styles.packetLegend}>
+                      左轮 右轮 红灯 蓝灯 绿灯 黄灯 校验1 校验2
+                    </ThemedText>
+                  </View>
+                );
 
-          <View style={[styles.joystickWrapper, { width: layout.joystickSize }]}>
-            <VirtualJoystick
-              onChange={(value) => handleJoystickChange('right', value)}
-              size={layout.joystickSize}
-              debounceThreshold={1}
-              smoothing={joystickSmoothing}
-              responseCurve={joystickResponseCurve}
-              deadZone={joystickDeadZone}
-              returnDurationMs={50}
-              touchId={1}
-            />
-          </View>
+              case 'log':
+                return (
+                  <View
+                    key={element.id}
+                    pointerEvents="auto"
+                    style={[
+                      styles.logContainer,
+                      {
+                        position: 'absolute',
+                        left: `${element.x}%`,
+                        top: `${element.y}%`,
+                        width: `${element.width}%`,
+                        height: `${element.height}%`,
+                      },
+                    ]}
+                  >
+                    <DebugLog
+                      isCollapsed={isLogCollapsed}
+                      toggleCollapse={() => setIsLogCollapsed(!isLogCollapsed)}
+                      bluetoothStatus={bluetoothStatus}
+                      packets={packets}
+                      onClearLog={clearLog}
+                    />
+                  </View>
+                );
+
+              default:
+                return null;
+            }
+          })}
         </View>
 
         <Modal
@@ -1323,17 +1406,10 @@ export default function BluetoothCarScreen() {
                     </View>
                   </>
                 )}
+              </ScrollView>
             </View>
           </View>
         </Modal>
-
-        <DebugLog
-          isCollapsed={isLogCollapsed}
-          toggleCollapse={() => setIsLogCollapsed(!isLogCollapsed)}
-          bluetoothStatus={bluetoothStatus}
-          packets={packets}
-          onClearLog={clearLog}
-        />
       </ThemedView>
       )}
     </Screen>
@@ -1548,5 +1624,13 @@ const styles = StyleSheet.create({
     color: '#ff6666',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  logContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 64, 0.35)',
+    borderRadius: 8,
+    padding: 8,
+    overflow: 'hidden',
   },
 });
