@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     "name": appName,
     "slug": slugAppName,
     "owner": "zeeonthetrack",
-    "version": "1.0.0",
+    "version": "1.15.0",
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",

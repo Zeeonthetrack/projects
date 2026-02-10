@@ -9,9 +9,12 @@ import { VirtualJoystick } from '@/components/VirtualJoystick';
 import { FunctionButton } from '@/components/FunctionButton';
 import { DebugLog } from '@/components/DebugLog';
 import { TouchButton } from '@/components/TouchButton';
+import { LayoutEditor, LayoutElement } from '@/components/LayoutEditor';
 import { BluetoothManager } from '@/utils/bluetoothManager';
 import { ControlData, createDataPacket, formatPacketHex, getDefaultControlData } from '@/utils/dataPacket';
 import { BluetoothDevice } from '@/utils/bluetoothTypes';
+import { ElementLayoutScheme, DEFAULT_LAYOUT_SCHEMES, cloneLayoutScheme } from '@/utils/layoutSchemes';
+import { LayoutSchemeManager } from '@/utils/layoutSchemeManager';
 
 /**
  * 蓝牙遥控小车主界面
@@ -143,7 +146,14 @@ export default function BluetoothCarScreen() {
   const [settings, setSettings] = useState<ControlSettings>(defaultSettings);
   const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(getDefaultLayoutConfig());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'general' | 'layout'>('general');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'layout' | 'editor'>('general');
+  
+  // 布局编辑器相关状态
+  const [isLayoutEditing, setIsLayoutEditing] = useState(false);
+  const [layoutElements, setLayoutElements] = useState<LayoutElement[]>(DEFAULT_LAYOUT_SCHEMES.default.elements);
+  const [currentLayoutScheme, setCurrentLayoutScheme] = useState<ElementLayoutScheme>(DEFAULT_LAYOUT_SCHEMES.default);
+  const [layoutSchemes, setLayoutSchemes] = useState<ElementLayoutScheme[]>([]);
+  const [newSchemeName, setNewSchemeName] = useState('');
   
   // 定时器引用（用于5ms周期发送）
   const sendDataTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -478,6 +488,13 @@ export default function BluetoothCarScreen() {
           const parsed = JSON.parse(storedLayout) as LayoutConfig;
           setLayoutConfig(parsed);
         }
+        
+        // 加载布局方案
+        const schemes = await LayoutSchemeManager.getAllSchemes();
+        setLayoutSchemes(schemes);
+        const currentScheme = await LayoutSchemeManager.getCurrentScheme();
+        setCurrentLayoutScheme(currentScheme);
+        setLayoutElements(currentScheme.elements);
       } catch (error) {
         console.warn('[设置] 读取失败，使用默认值', error);
       }
@@ -619,9 +636,128 @@ export default function BluetoothCarScreen() {
     []
   );
 
+  /**
+   * 处理布局元素变化
+   */
+  const handleLayoutElementsChange = useCallback((elements: LayoutElement[]) => {
+    setLayoutElements(elements);
+  }, []);
+
+  /**
+   * 保存当前布局编辑为新方案
+   */
+  const handleSaveLayoutScheme = useCallback(async () => {
+    if (!newSchemeName.trim()) {
+      Alert.alert('错误', '请输入方案名称');
+      return;
+    }
+
+    try {
+      const newScheme: ElementLayoutScheme = {
+        id: `custom-${Date.now()}`,
+        name: newSchemeName,
+        description: '自定义方案',
+        isPreset: false,
+        elements: layoutElements,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await LayoutSchemeManager.saveScheme(newScheme);
+      const schemes = await LayoutSchemeManager.getAllSchemes();
+      setLayoutSchemes(schemes);
+      setNewSchemeName('');
+      Alert.alert('成功', `方案 "${newSchemeName}" 已保存`);
+    } catch (error) {
+      Alert.alert('错误', `保存失败: ${error}`);
+    }
+  }, [layoutElements, newSchemeName]);
+
+  /**
+   * 加载布局方案
+   */
+  const handleLoadLayoutScheme = useCallback(async (schemeId: string) => {
+    try {
+      const scheme = await LayoutSchemeManager.getSchemeById(schemeId);
+      if (!scheme) {
+        Alert.alert('错误', '方案未找到');
+        return;
+      }
+
+      setCurrentLayoutScheme(scheme);
+      setLayoutElements(scheme.elements);
+      await LayoutSchemeManager.setCurrentScheme(schemeId);
+      Alert.alert('成功', `已切换到方案: ${scheme.name}`);
+    } catch (error) {
+      Alert.alert('错误', `加载失败: ${error}`);
+    }
+  }, []);
+
+  /**
+   * 删除布局方案
+   */
+  const handleDeleteLayoutScheme = useCallback(async (schemeId: string) => {
+    if (DEFAULT_LAYOUT_SCHEMES[schemeId as keyof typeof DEFAULT_LAYOUT_SCHEMES]) {
+      Alert.alert('错误', '无法删除预设方案');
+      return;
+    }
+
+    try {
+      await LayoutSchemeManager.deleteScheme(schemeId);
+      const schemes = await LayoutSchemeManager.getAllSchemes();
+      setLayoutSchemes(schemes);
+      Alert.alert('成功', '方案已删除');
+    } catch (error) {
+      Alert.alert('错误', `删除失败: ${error}`);
+    }
+  }, []);
+
+  /**
+   * 退出编辑模式并保存
+   */
+  const handleExitLayoutEditing = useCallback(async () => {
+    try {
+      // 更新当前方案的元素
+      const updatedScheme: ElementLayoutScheme = {
+        ...currentLayoutScheme,
+        elements: layoutElements,
+        updatedAt: Date.now(),
+      };
+
+      if (!currentLayoutScheme.isPreset) {
+        await LayoutSchemeManager.saveScheme(updatedScheme);
+      }
+
+      setIsLayoutEditing(false);
+      Alert.alert('成功', '布局已保存');
+    } catch (error) {
+      Alert.alert('错误', `保存失败: ${error}`);
+    }
+  }, [currentLayoutScheme, layoutElements]);
+
   return (
     <Screen backgroundColor="#1a1a2e" statusBarStyle="light" safeAreaEdges={['left', 'right']}>
-      <ThemedView
+      {/* 编辑模式下显示LayoutEditor */}
+      {isLayoutEditing ? (
+        <View style={{ flex: 1 }}>
+          <LayoutEditor
+            elements={layoutElements}
+            onElementsChange={handleLayoutElementsChange}
+            isEditing={isLayoutEditing}
+            onEditingChange={setIsLayoutEditing}
+          />
+          <View style={{ flexDirection: 'row', gap: 8, padding: 12, backgroundColor: '#1a1a2e', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
+            <TouchButton onPress={handleExitLayoutEditing} style={{ flex: 1, backgroundColor: '#10B981', padding: 12, borderRadius: 8 }}>
+              <Text style={{ color: '#ffffff', textAlign: 'center', fontWeight: 'bold' }}>保存编辑</Text>
+            </TouchButton>
+            <TouchButton onPress={() => setIsLayoutEditing(false)} style={{ flex: 1, backgroundColor: '#6B7280', padding: 12, borderRadius: 8 }}>
+              <Text style={{ color: '#ffffff', textAlign: 'center', fontWeight: 'bold' }}>取消</Text>
+            </TouchButton>
+          </View>
+        </View>
+      ) : (
+        // 正常控制模式
+        <ThemedView
         style={[
           styles.container,
           {
@@ -660,10 +796,24 @@ export default function BluetoothCarScreen() {
             >
               <Text style={[styles.settingsButtonText, { fontSize: layout.settingsButtonSize * 0.5 }]}>⚙️</Text>
             </TouchButton>
+            <TouchButton
+              onPress={() => setIsLayoutEditing(true)}
+              style={[
+                styles.settingsButton,
+                {
+                  width: layout.settingsButtonSize,
+                  height: layout.settingsButtonSize,
+                  borderRadius: layout.settingsButtonSize / 2,
+                  marginLeft: 8,
+                },
+              ]}
+            >
+              <Text style={[styles.settingsButtonText, { fontSize: layout.settingsButtonSize * 0.5 }]}>✏️</Text>
+            </TouchButton>
           </View>
           <View style={styles.headerColumnCenter}>
             <ThemedText variant="h3" color="#ffffff">🚗 蓝牙遥控小车</ThemedText>
-            <ThemedText variant="caption" color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }}>v1.13</ThemedText>
+            <ThemedText variant="caption" color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }}>v1.15</ThemedText>
           </View>
           <View style={[styles.headerColumnRight, { gap: layout.headerGap }]}
           >
@@ -742,13 +892,6 @@ export default function BluetoothCarScreen() {
           ]}
         >
           <View style={[styles.joystickWrapper, { width: layout.joystickSize }]}>
-            <ThemedText
-              variant="small"
-              color="#ffffff"
-              style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap, fontSize: layout.joystickValueSize }]}
-            >
-              左摇杆
-            </ThemedText>
             <VirtualJoystick
               onChange={(value) => handleJoystickChange('left', value)}
               size={layout.joystickSize}
@@ -804,13 +947,6 @@ export default function BluetoothCarScreen() {
           </View>
 
           <View style={[styles.joystickWrapper, { width: layout.joystickSize }]}>
-            <ThemedText
-              variant="small"
-              color="#ffffff"
-              style={[styles.joystickLabel, { marginBottom: layout.joystickLabelGap, fontSize: layout.joystickValueSize }]}
-            >
-              右摇杆
-            </ThemedText>
             <VirtualJoystick
               onChange={(value) => handleJoystickChange('right', value)}
               size={layout.joystickSize}
@@ -870,6 +1006,17 @@ export default function BluetoothCarScreen() {
                 >
                   <Text style={[styles.tabText, settingsTab === 'layout' ? styles.tabTextActive : null]}>
                     布局配置
+                  </Text>
+                </TouchButton>
+                <TouchButton
+                  onPress={() => setSettingsTab('editor')}
+                  style={[
+                    styles.tabButton,
+                    settingsTab === 'editor' ? styles.tabButtonActive : null,
+                  ]}
+                >
+                  <Text style={[styles.tabText, settingsTab === 'editor' ? styles.tabTextActive : null]}>
+                    方案管理
                   </Text>
                 </TouchButton>
               </View>
@@ -1111,7 +1258,71 @@ export default function BluetoothCarScreen() {
                     </TouchButton>
                   </>
                 )}
-              </ScrollView>
+
+                {settingsTab === 'editor' && (
+                  <>
+                    {/* 方案管理内容 */}
+                    <Text style={styles.sectionTitle}>方案列表</Text>
+
+                    <ScrollView style={{ maxHeight: 200, marginBottom: 12 }}>
+                      {layoutSchemes.map((scheme) => (
+                        <View key={scheme.id} style={[styles.schemeItem, { marginBottom: 8 }]}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#ffffff', fontWeight: 'bold' }}>
+                              {scheme.name}
+                              {scheme.isPreset ? ' 📌' : ''}
+                              {scheme.id === currentLayoutScheme.id ? ' ✓' : ''}
+                            </Text>
+                            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+                              {scheme.description || ''}
+                            </Text>
+                          </View>
+                          <TouchButton
+                            onPress={() => handleLoadLayoutScheme(scheme.id)}
+                            style={[styles.optionButton, { marginRight: 8 }]}
+                          >
+                            <Text style={styles.optionText}>载入</Text>
+                          </TouchButton>
+                          {!scheme.isPreset && (
+                            <TouchButton
+                              onPress={() =>
+                                Alert.alert('确认删除', `确定要删除方案 "${scheme.name}" 吗？`, [
+                                  { text: '取消', style: 'cancel' },
+                                  {
+                                    text: '删除',
+                                    style: 'destructive',
+                                    onPress: () => handleDeleteLayoutScheme(scheme.id),
+                                  },
+                                ])
+                              }
+                              style={[styles.optionButton, { backgroundColor: 'rgba(239,68,68,0.3)' }]}
+                            >
+                              <Text style={{ color: '#ff6666' }}>删除</Text>
+                            </TouchButton>
+                          )}
+                        </View>
+                      ))}
+                    </ScrollView>
+
+                    <Text style={styles.sectionTitle}>保存新方案</Text>
+
+                    <View style={styles.settingsRow}>
+                      <TextInput
+                        placeholder="输入方案名称"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        value={newSchemeName}
+                        onChangeText={setNewSchemeName}
+                        style={[styles.settingsInput, { flex: 1 }]}
+                      />
+                      <TouchButton
+                        onPress={handleSaveLayoutScheme}
+                        style={[styles.optionButton, { backgroundColor: 'rgba(16,185,129,0.3)' }]}
+                      >
+                        <Text style={{ color: '#10B981' }}>保存</Text>
+                      </TouchButton>
+                    </View>
+                  </>
+                )}
             </View>
           </View>
         </Modal>
@@ -1124,6 +1335,7 @@ export default function BluetoothCarScreen() {
           onClearLog={clearLog}
         />
       </ThemedView>
+      )}
     </Screen>
   );
 }
@@ -1316,6 +1528,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 16,
     marginBottom: 8,
+  },
+  schemeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 6,
+    gap: 8,
   },
   resetButton: {
     marginTop: 16,
