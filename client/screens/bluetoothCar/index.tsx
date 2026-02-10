@@ -213,8 +213,12 @@ export default function BluetoothCarScreen() {
       const bufferSize = clampNumber(settings.receiveBufferSize, 10, 500);
       setPackets(prev => [...prev.slice(-(bufferSize - 1)), hexString]);
       
-      // 发送数据
+      // 发送数据（固定8字节包）
       await bluetoothManager.sendData(finalPacket);
+      if (settings.dataPacketAppendNewline) {
+        const newlinePayload = new Uint8Array(newlineBytes);
+        await bluetoothManager.sendData(newlinePayload);
+      }
       
     } catch (error) {
       console.error('[数据发送] 发送失败:', error);
