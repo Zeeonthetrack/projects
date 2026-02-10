@@ -101,6 +101,7 @@ export default function BluetoothCarScreen() {
   
   // 定时器引用（用于5ms周期发送）
   const sendDataTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSendAtRef = useRef(0);
 
   /**
    * 更新摇杆数值
@@ -183,20 +184,30 @@ export default function BluetoothCarScreen() {
       return;  // 未连接时不发送
     }
 
+    const now = Date.now();
+    const minInterval = clampNumber(settings.sendAreaIntervalMs, 1, 100);
+    if (now - lastSendAtRef.current < minInterval) {
+      return;
+    }
+    lastSendAtRef.current = now;
+
     try {
       // 创建数据包
       const packet = createDataPacket(controlData);
+      // 保持控制包固定8字节，避免与协议冲突
+      const finalPacket = packet;
+
       const newlineBytes = settings.newlineFormat === '\r\n'
         ? [0x0d, 0x0a]
         : settings.newlineFormat === '\n'
           ? [0x0a]
           : [0x0d];
-      const finalPacket = settings.dataPacketAppendNewline
+      const logPacket = settings.dataPacketAppendNewline
         ? new Uint8Array([...packet, ...newlineBytes])
         : packet;
       
       // 格式化为十六进制字符串（用于日志）
-      const hexString = formatPacketHex(finalPacket);
+      const hexString = formatPacketHex(logPacket);
       
       // 添加到日志（受缓存大小控制）
       const bufferSize = clampNumber(settings.receiveBufferSize, 10, 500);
@@ -208,7 +219,15 @@ export default function BluetoothCarScreen() {
     } catch (error) {
       console.error('[数据发送] 发送失败:', error);
     }
-  }, [isConnected, controlData, bluetoothManager, settings.receiveBufferSize, settings.dataPacketAppendNewline, settings.newlineFormat]);
+  }, [
+    isConnected,
+    controlData,
+    bluetoothManager,
+    settings.receiveBufferSize,
+    settings.sendAreaIntervalMs,
+    settings.dataPacketAppendNewline,
+    settings.newlineFormat,
+  ]);
 
   /**
    * 启动数据发送定时器（5ms周期）
@@ -499,6 +518,20 @@ export default function BluetoothCarScreen() {
     return min + (max - min) * factor;
   }, [settings.joystickSensitivity]);
 
+  const joystickResponseCurve = useMemo(() => {
+    const min = 1.4;
+    const max = 0.7;
+    const factor = (clampNumber(settings.joystickSensitivity, 1, 10) - 1) / 9;
+    return min + (max - min) * factor;
+  }, [settings.joystickSensitivity]);
+
+  const joystickDeadZone = useMemo(() => {
+    const min = 0.12;
+    const max = 0.04;
+    const factor = (clampNumber(settings.joystickSensitivity, 1, 10) - 1) / 9;
+    return min + (max - min) * factor;
+  }, [settings.joystickSensitivity]);
+
   const updateNumberSetting = useCallback(
     (key: keyof ControlSettings, value: string, min: number, max: number) => {
       const numeric = Number(value);
@@ -623,6 +656,8 @@ export default function BluetoothCarScreen() {
               size={layout.joystickSize}
               debounceThreshold={1}
               smoothing={joystickSmoothing}
+              responseCurve={joystickResponseCurve}
+              deadZone={joystickDeadZone}
               returnDurationMs={50}
               touchId={0}
             />
@@ -683,6 +718,8 @@ export default function BluetoothCarScreen() {
               size={layout.joystickSize}
               debounceThreshold={1}
               smoothing={joystickSmoothing}
+              responseCurve={joystickResponseCurve}
+              deadZone={joystickDeadZone}
               returnDurationMs={50}
               touchId={1}
             />

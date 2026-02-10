@@ -17,6 +17,8 @@ interface VirtualJoystickProps {
   minValue?: number;
   debounceThreshold?: number;
   smoothing?: number;
+  deadZone?: number;
+  responseCurve?: number;
   returnDurationMs?: number;
   size?: number;
   touchId?: number;
@@ -30,6 +32,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   minValue = 0,
   debounceThreshold = 1,
   smoothing = 0.1,
+  deadZone = 0.06,
+  responseCurve = 1.1,
   returnDurationMs = 50,
   size = 160,
   touchId,
@@ -38,6 +42,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   const baseRadius = size / 2;
   const knobRadius = size * 0.28;
   const maxOffset = Math.max(1, baseRadius - knobRadius);
+  const deadZoneRatio = Math.min(0.4, Math.max(0, deadZone));
+  const curveExponent = Math.min(2.5, Math.max(0.5, responseCurve));
 
   const lastSentValueRef = useRef(neutralValue);
   const x = useSharedValue(0);
@@ -66,10 +72,15 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     const clampToCircle = (dx: number, dy: number) => {
       'worklet';
       const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance <= maxOffset) {
-        return { x: dx, y: dy };
+      const safeDistance = distance === 0 ? 1 : distance;
+      const deadZoneRadius = maxOffset * deadZoneRatio;
+      if (distance <= deadZoneRadius) {
+        return { x: 0, y: 0 };
       }
-      const scale = maxOffset / distance;
+      const usableRadius = Math.max(1, maxOffset - deadZoneRadius);
+      const normalized = Math.min(1, (distance - deadZoneRadius) / usableRadius);
+      const curved = Math.pow(normalized, curveExponent);
+      const scale = (curved * maxOffset) / safeDistance;
       return { x: dx * scale, y: dy * scale };
     };
 
@@ -87,12 +98,14 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
         if (activeTouchId.value !== null) {
           return;
         }
-        activeTouchId.value = event.pointerId ?? null;
+        const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        activeTouchId.value = pointerId;
         cancelAnimation(x);
         cancelAnimation(y);
       })
       .onUpdate((event) => {
-        if (activeTouchId.value !== event.pointerId) {
+        const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        if (activeTouchId.value !== pointerId) {
           return;
         }
         const clamped = clampToCircle(event.translationX, event.translationY);
@@ -104,7 +117,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
         runOnJS(emitValue)(value);
       })
       .onFinalize((event) => {
-        if (activeTouchId.value !== null && event.pointerId !== activeTouchId.value) {
+        const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
+        if (activeTouchId.value !== null && pointerId !== activeTouchId.value) {
           return;
         }
         activeTouchId.value = null;
@@ -115,11 +129,12 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   }, [
     debounceThreshold,
     emitValue,
-    touchId,
     maxOffset,
     maxValue,
     minValue,
     neutralValue,
+    deadZoneRatio,
+    curveExponent,
     returnDurationMs,
     smoothingFactor,
     activeTouchId,
