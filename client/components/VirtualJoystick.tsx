@@ -95,9 +95,6 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     return Gesture.Pan()
       .minDistance(0)
       .onBegin((event) => {
-        if (activeTouchId.value !== null) {
-          return;
-        }
         const pointerId = (event as any).pointerId ?? (event as any).id ?? null;
         activeTouchId.value = pointerId;
         cancelAnimation(x);

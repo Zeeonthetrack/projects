@@ -41,8 +41,8 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
   };
 
   const matchesTouchId = (identifier?: number | null) => {
-    if (touchId === undefined) return true;
-    return identifier === touchId;
+    // 每个摇杆独立处理自己的触摸，无需检查ID匹配
+    return true;
   };
   
   /**
@@ -51,18 +51,18 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
    */
   const panResponder = useRef(
     PanResponder.create({
-      // 允许响应手势
+      // 允许响应手势（支持多点触摸）
       onStartShouldSetPanResponder: (evt) =>
-        activeTouchIdRef.current === null && matchesTouchId(evt.nativeEvent.identifier),
+        matchesTouchId(evt.nativeEvent.identifier),
       onMoveShouldSetPanResponder: (evt) =>
-        activeTouchIdRef.current === null && matchesTouchId(evt.nativeEvent.identifier),
+        matchesTouchId(evt.nativeEvent.identifier),
       
       // 触摸开始
       onPanResponderGrant: (evt) => {
-        // 可以在这里添加触摸开始的逻辑（如震动反馈）
         if (!matchesTouchId(evt.nativeEvent.identifier)) {
           return;
         }
+        // 始终接受新的触摸（支持多点触摸）
         activeTouchIdRef.current = evt.nativeEvent.identifier ?? null;
       },
       
