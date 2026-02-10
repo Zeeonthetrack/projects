@@ -594,6 +594,7 @@ export default function BluetoothCarScreen() {
           </View>
           <View style={styles.headerColumnCenter}>
             <ThemedText variant="h3" color="#ffffff">🚗 蓝牙遥控小车</ThemedText>
+            <ThemedText variant="caption" color="rgba(255,255,255,0.6)" style={{ marginTop: 4 }}>v1.9</ThemedText>
           </View>
           <View style={[styles.headerColumnRight, { gap: layout.headerGap }]}
           >

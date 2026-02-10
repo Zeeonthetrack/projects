@@ -137,7 +137,6 @@ export function Joystick({ value, onChange, label, touchId }: JoystickProps) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.valueText}>{value}</Text>
       
       {/* 摇杆外圈 */}
       <View style={styles.outerCircle}>

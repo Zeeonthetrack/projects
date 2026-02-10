@@ -31,8 +31,36 @@ export const createStyles = (theme: Theme) => {
       flexDirection: 'row',
       justifyContent: 'space-around',
       alignItems: 'center',
-      marginBottom: Spacing.lg + 4,
+      marginBottom: Spacing.lg,
       paddingHorizontal: Spacing.xs,
+    },
+    
+    // 数据包显示容器
+    packetContainer: {
+      marginHorizontal: Spacing.md,
+      marginBottom: Spacing.lg,
+      padding: Spacing.md,
+      borderRadius: BorderRadius.lg,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.primary + '30',
+    },
+    
+    packetLabel: {
+      marginBottom: Spacing.xs,
+    },
+    
+    packetValue: {
+      fontFamily: 'monospace',
+      letterSpacing: 2,
+      marginBottom: Spacing.xs,
+    },
+    
+    packetLegend: {
+      marginTop: Spacing.xs,
+      paddingTop: Spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderDefault,
     },
     
     // 功能按键容器 - 优化间距，紧凑排列

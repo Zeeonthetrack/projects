@@ -10,6 +10,7 @@ import { BluetoothService } from '@/services/BluetoothService';
 import { BluetoothDevice } from '@/utils/bluetoothTypes';
 import { useTheme } from '@/hooks/useTheme';
 import { createStyles } from './styles';
+import { createDataPacket, formatPacketHex } from '@/utils/dataPacket';
 
 /**
  * 主页面：游戏手柄控制器
@@ -43,6 +44,19 @@ export default function ControllerScreen() {
   // 调试日志
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  
+  // 计算当前数据包
+  const currentPacket = useMemo(() => {
+    const packet = createDataPacket({
+      leftJoystick,
+      rightJoystick,
+      redButton: buttonStates.red ? 0x01 : 0x00,
+      blueButton: buttonStates.blue ? 0x02 : 0x00,
+      greenButton: buttonStates.green ? 0x03 : 0x00,
+      yellowButton: buttonStates.yellow ? 0x04 : 0x00,
+    });
+    return formatPacketHex(packet);
+  }, [leftJoystick, rightJoystick, buttonStates]);
   
   // 初始化：设置日志回调
   useEffect(() => {
@@ -135,6 +149,12 @@ export default function ControllerScreen() {
           <View style={styles.statusRow}>
             <ThemedText
               variant="caption"
+              style={{ marginRight: 12, color: theme.textSecondary }}
+            >
+              v1.9
+            </ThemedText>
+            <ThemedText
+              variant="caption"
               color={isConnected ? theme.success : theme.error}
             >
               {isConnected ? '● 已连接' : '○ 未连接'}
@@ -160,6 +180,21 @@ export default function ControllerScreen() {
             touchId={1}
           />
         </View>
+        
+        {/* 数据包显示区域 */}
+        <ThemedView level="elevated" style={styles.packetContainer}>
+          <ThemedText variant="caption" color={theme.textSecondary} style={styles.packetLabel}>
+            当前数据包 (8字节)
+          </ThemedText>
+          <ThemedText variant="h4" color={theme.primary} style={styles.packetValue}>
+            {currentPacket}
+          </ThemedText>
+          <View style={styles.packetLegend}>
+            <ThemedText variant="caption" color={theme.textMuted}>
+              左轮 右轮 激光 夹闭 夹开 停止 校验1 校验2
+            </ThemedText>
+          </View>
+        </ThemedView>
         
         {/* 功能按键区域 */}
         <View style={styles.buttonContainer}>

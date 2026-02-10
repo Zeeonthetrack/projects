@@ -154,15 +154,12 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
     width: size,
     height: size,
     borderRadius: size / 2,
-    borderWidth: size * 0.035,
-    shadowOffset: { width: 0, height: size * 0.025 },
-    shadowRadius: size * 0.05,
-    elevation: Math.max(1, Math.round(size * 0.06)),
-  };
-
-  const labelStyle: TextStyle = {
-    shadowOffset: { width: size * 0.01, height: size * 0.01 },
-    textShadowRadius: size * 0.01,
+    borderWidth: size * 0.04,
+    borderColor: isPressed ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.3)',
+    shadowOffset: { width: 0, height: isPressed ? size * 0.02 : size * 0.06 },
+    shadowRadius: isPressed ? size * 0.05 : size * 0.1,
+    shadowOpacity: isPressed ? 0.2 : 0.35,
+    elevation: isPressed ? 4 : Math.max(1, Math.round(size * 0.1)),
   };
 
   return (
@@ -173,25 +170,11 @@ export const FunctionButton: React.FC<FunctionButtonProps> = ({
         style,
         {
           backgroundColor: getButtonColor(),
-          transform: [{ scale: isPressed ? 0.95 : 1 }],
+          transform: [{ scale: isPressed ? 0.88 : 1 }],
         },
       ]}
       {...panResponder.panHandlers}
-    >
-      <ThemedView style={styles.buttonContent}>
-        <Text
-          style={[
-            styles.label,
-            {
-              fontSize: labelSize ?? size * 0.18,
-            },
-            labelStyle,
-          ]}
-        >
-          {label}
-        </Text>
-      </ThemedView>
-    </ThemedView>
+    />
   );
 };
 
@@ -199,18 +182,6 @@ const styles = StyleSheet.create({
   button: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderColor: '#333',
     shadowColor: '#000',
-    shadowOpacity: 0.3,
-  },
-  buttonContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  label: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
   },
 });
